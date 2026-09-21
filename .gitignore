@@ -1,7 +1,9 @@
 # Generated binaries
 *.exe
 *.exe~
+*.dll
 !assets/rcedit.exe
+test-v132/
 
 
 # Local research and tools
