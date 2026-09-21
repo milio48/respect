@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>respect.exe — Standalone EXE Builder</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --card-border: #30363d;
+      --text: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --success-bg: rgba(63, 185, 80, 0.15);
+      --danger: #f85149;
+      --danger-bg: rgba(248, 81, 73, 0.15);
+      --input-bg: #0d1117;
+      --input-border: #30363d;
+      --focus-ring: rgba(88, 166, 255, 0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+      font-size: 13.5px;
+      user-select: none;
+    }
+
+    .container {
+      max-width: 660px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #1f6feb, #238636);
+      color: white;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(31, 111, 235, 0.3);
+    }
+
+    .title-group h1 {
+      font-size: 17px;
+      color: var(--text-bright);
+      font-weight: 700;
+    }
+
+    .title-group p {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .form-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 12.5px;
+      color: var(--text-bright);
+      margin-bottom: 6px;
+    }
+
+    .hint {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text-bright);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    textarea {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      resize: vertical;
+      min-height: 110px;
+      font-size: 12.5px;
+      line-height: 1.4;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .segmented-control {
+      display: flex;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+      margin-bottom: 14px;
+    }
+
+    .seg-btn {
+      flex: 1;
+      padding: 7px 10px;
+      text-align: center;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .seg-btn.active {
+      background: #21262d;
+      color: var(--text-bright);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .preset-chips {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .chip {
+      background: #21262d;
+      border: 1px solid var(--card-border);
+      color: var(--muted);
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover {
+      color: var(--text-bright);
+      border-color: var(--accent);
+    }
+
+    .btn-build {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px 18px;
+      background: linear-gradient(180deg, #238636 0%, #1a6327 100%);
+      border: 1px solid rgba(240, 246, 252, 0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 8px rgba(35, 134, 54, 0.4);
+    }
+
+    .btn-build:hover {
+      background: linear-gradient(180deg, #2ea043 0%, #238636 100%);
+      box-shadow: 0 4px 14px rgba(46, 160, 67, 0.5);
+    }
+
+    .btn-build:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #status-box {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      display: none;
+      font-size: 12.5px;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    #status-box.ok {
+      display: block;
+      background: var(--success-bg);
+      border: 1px solid var(--success);
+      color: #7ee787;
+    }
+
+    #status-box.err {
+      display: block;
+      background: var(--danger-bg);
+      border: 1px solid var(--danger);
+      color: #ff7b72;
+    }
+
+    #status-box.loading {
+      display: block;
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo-badge">⚡ RESPECT</div>
+      <div class="title-group">
+        <h1>Desktop EXE Builder</h1>
+        <p>Ubah Web / HTML menjadi binary Windows tanpa recompile</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="form-card">
+    <!-- Mode Selector -->
+    <div class="segmented-control">
+      <button type="button" class="seg-btn active" onclick="setMode('url')">🌐 URL Website</button>
+      <button type="button" class="seg-btn" onclick="setMode('html')">📄 HTML Inline</button>
+      <button type="button" class="seg-btn" onclick="setMode('file')">📁 File HTML Lokal</button>
+    </div>
+    <input type="hidden" id="mode" value="url">
+
+    <!-- Source Input -->
+    <div class="field">
+      <label id="source-label" for="source">Target URL</label>
+      <textarea id="source" placeholder="https://my-app.example.com" spellcheck="false"></textarea>
+      <div class="hint" id="source-hint">Masukkan URL web lengkap termasuk https://</div>
+    </div>
+
+    <!-- Output EXE Name & Title -->
+    <div class="grid-2">
+      <div class="field">
+        <label for="outname">Nama Output File</label>
+        <input type="text" id="outname" value="demo.exe" placeholder="app.exe">
+      </div>
+      <div class="field">
+        <label for="title">Judul Jendela</label>
+        <input type="text" id="title" value="My App" placeholder="Judul Aplikasi">
+      </div>
+    </div>
+
+    <!-- Width & Height -->
+    <div class="field">
+      <label>Ukuran Window (Lebar x Tinggi)</label>
+      <div class="grid-2">
+        <input type="number" id="width" value="1024" placeholder="Width">
+        <input type="number" id="height" value="768" placeholder="Height">
+      </div>
+      <div class="preset-chips">
+        <span class="chip" onclick="setDims(800, 600)">800x600</span>
+        <span class="chip" onclick="setDims(1024, 768)">1024x768</span>
+        <span class="chip" onclick="setDims(1280, 720)">1280x720 (HD)</span>
+        <span class="chip" onclick="setDims(1440, 900)">1440x900</span>
+      </div>
+    </div>
+
+    <!-- Icon Path -->
+    <div class="field">
+      <label for="icon">Path Icon (.ico) — Opsional</label>
+      <input type="text" id="icon" placeholder="C:\path\to\icon.ico">
+      <div class="hint">Kosongkan jika ingin menggunakan icon bawaan respect.exe</div>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="button" id="btn-build" class="btn-build" onclick="buildApp()">
+      <span id="btn-icon">🚀</span>
+      <span id="btn-text">Build Standalone EXE</span>
+    </button>
+
+    <!-- Status Box -->
+    <div id="status-box"></div>
+  </div>
+</div>
+
+<script>
+  let currentMode = 'url';
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('mode').value = mode;
+
+    document.querySelectorAll('.seg-btn').forEach((btn, idx) => {
+      const modes = ['url', 'html', 'file'];
+      btn.classList.toggle('active', modes[idx] === mode);
+    });
+
+    const label = document.getElementById('source-label');
+    const hint = document.getElementById('source-hint');
+    const src = document.getElementById('source');
+
+    if (mode === 'url') {
+      label.textContent = 'Target URL';
+      src.placeholder = 'https://my-app.example.com';
+      hint.textContent = 'URL web yang akan dimuat saat binary dijalankan.';
+      src.style.minHeight = '60px';
+    } else if (mode === 'html') {
+      label.textContent = 'Kode HTML (Single-file)';
+      src.placeholder = '<!DOCTYPE html>\n<html>\n<head><title>App</title></head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>';
+      hint.textContent = 'Tuliskan kode HTML, CSS, dan JS yang akan di-bundle ke dalam EXE.';
+      src.style.minHeight = '140px';
+    } else if (mode === 'file') {
+      label.textContent = 'Path File HTML Lokal';
+      src.placeholder = 'C:\\project\\dist\\index.html';
+      hint.textContent = 'Path absolut atau relatif ke file HTML utama.';
+      src.style.minHeight = '60px';
+    }
+  }
+
+  function setDims(w, h) {
+    document.getElementById('width').value = w;
+    document.getElementById('height').value = h;
+  }
+
+  async function buildApp() {
+    const outName = document.getElementById('outname').value.trim();
+    const source = document.getElementById('source').value.trim();
+    const title = document.getElementById('title').value.trim();
+    const width = parseInt(document.getElementById('width').value, 10) || 800;
+    const height = parseInt(document.getElementById('height').value, 10) || 600;
+    const iconPath = document.getElementById('icon').value.trim();
+
+    const statusBox = document.getElementById('status-box');
+    const btn = document.getElementById('btn-build');
+    const btnText = document.getElementById('btn-text');
+
+    if (!outName) {
+      showStatus('err', 'Nama output file EXE wajib diisi.');
+      return;
+    }
+    if (!source) {
+      showStatus('err', 'Sumber konten (URL/HTML/File) tidak boleh kosong.');
+      return;
+    }
+
+    const cfg = {
+      mode: currentMode,
+      source: source,
+      title: title || 'respect.exe',
+      width: width,
+      height: height,
+      icon_path: iconPath || '',
+      out_name: outName
+    };
+
+    btn.disabled = true;
+    btnText.textContent = 'Membuat Binary EXE...';
+    showStatus('loading', '<span class="spinner"></span> Sedang memproses dan menempelkan payload...');
+
+    try {
+      if (typeof ipc === 'undefined' || !ipc.invoke) {
+        throw new Error('IPC Miniblink tidak tersedia di context ini.');
+      }
+
+      const resStr = await ipc.invoke('build-app', JSON.stringify(cfg));
+      let res = {};
+      try {
+        res = typeof resStr === 'string' ? JSON.parse(resStr) : resStr;
+      } catch (e) {
+        res = { ok: false, error: resStr };
+      }
+
+      if (res.ok) {
+        showStatus('ok', `<strong>🎉 Berhasil!</strong> File executable mandiri telah siap:<br><code style="color:#fff;">${res.path || cfg.out_name}</code><br><span style="font-size:11.5px; opacity:0.85;">File ini dapat langsung dijalankan dan didistribusikan tanpa server atau instalasi apapun.</span>`);
+      } else {
+        showStatus('err', `<strong>Gagal:</strong> ${res.error || 'Terjadi kesalahan sistem'}`);
+      }
+    } catch (err) {
+      showStatus('err', `<strong>Error:</strong> ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btnText.textContent = 'Build Standalone EXE';
+    }
+  }
+
+  function showStatus(type, html) {
+    const box = document.getElementById('status-box');
+    box.className = type;
+    box.innerHTML = html;
+  }
+</script>
+
+</body>
+</html>

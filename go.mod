@@ -2,9 +2,10 @@ module respect-app
 
 go 1.25.3
 
+require github.com/epkgs/blink v1.0.2
+
 require (
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459 // indirect
-	github.com/epkgs/blink v1.0.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jlaffaye/ftp v0.2.0 // indirect

@@ -1,36 +1,84 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
+	"strings"
+	"syscall"
 
-	blink "github.com/epkgs/blink"
+	"respect-app/internal/builder"
+	"respect-app/internal/icon"
+	"respect-app/internal/payload"
+	"respect-app/internal/runtime"
 )
 
+func init() {
+	// Hubungkan icon injector ke payload builder
+	payload.IconInjector = icon.InjectIcon
+}
+
+// attachConsole menghubungkan stdout/stderr ke terminal pemanggil di Windows (jika ada)
+func attachConsole() {
+	modkernel32 := syscall.NewLazyDLL("kernel32.dll")
+	procAttachConsole := modkernel32.NewProc("AttachConsole")
+	// ATTACH_PARENT_PROCESS = -1 (^uintptr(0))
+	procAttachConsole.Call(^uintptr(0))
+}
+
 func main() {
-	// 1. Buat aplikasi (bukan blink.New())
-	app := blink.NewApp()
-	defer app.Exit()
+	// Jika terdapat argumen CLI (misal --build atau --help), pasang console output
+	if len(os.Args) > 1 {
+		attachConsole()
+	}
 
-	// 2. Buat jendela browser
-	view := app.CreateWebWindowPopup()
+	// 1. Parsing CLI flags untuk mode build baris perintah
+	buildFlag := flag.Bool("build", false, "Bangun file EXE baru dari konfigurasi")
+	mode := flag.String("mode", "url", "Mode tampilan: url | html | file")
+	source := flag.String("source", "", "Sumber konten: URL / kode HTML / path file lokal")
+	out := flag.String("out", "demo.exe", "Nama output file EXE")
+	title := flag.String("title", "respect.exe", "Judul jendela aplikasi")
+	width := flag.Int("width", 800, "Lebar jendela aplikasi")
+	height := flag.Int("height", 600, "Tinggi jendela aplikasi")
+	iconPath := flag.String("icon", "", "Path file icon .ico (opsional)")
+	flag.Parse()
 
-	// 3. Atur judul dan posisi jendela
-	view.Window.SetTitle("respect.exe")
-	view.Window.MoveToCenter()
+	if *buildFlag {
+		if strings.TrimSpace(*source) == "" {
+			fmt.Fprintln(os.Stderr, "error: parameter --source wajib diisi")
+			os.Exit(1)
+		}
 
-	// 4. Muat konten HTML atau URL
-	// Untuk file lokal, gunakan format file:///C:/path/to/file.html
-	// Untuk string HTML langsung, gunakan view.LoadHtml("<h1>Hello</h1>")
-	view.LoadURL("https://www.example.com")
+		outName := strings.TrimSpace(*out)
+		if !strings.HasSuffix(strings.ToLower(outName), ".exe") {
+			outName += ".exe"
+		}
 
-	// 5. Tampilkan jendela
-	view.ShowWindow()
+		cfg := payload.Config{
+			Mode:     *mode,
+			Source:   *source,
+			Title:    *title,
+			Width:    *width,
+			Height:   *height,
+			IconPath: *iconPath,
+			OutName:  outName,
+		}
 
-	// 6. Pastikan aplikasi keluar saat jendela ditutup
-	view.OnDestroy(func() {
-		os.Exit(0)
-	})
+		if err := payload.BuildSelf(cfg); err != nil {
+			fmt.Fprintln(os.Stderr, "build error:", err)
+			os.Exit(1)
+		}
 
-	// 7. Jalankan message loop agar aplikasi tetap berjalan
-	app.KeepRunning()
+		fmt.Println("OK:", cfg.OutName)
+		return
+	}
+
+	// 2. Cek apakah binary ini sendiri memiliki payload trailer (Runtime Mode)
+	if cfg, err := payload.ReadPayload(); err == nil {
+		runtime.Run(cfg)
+		return
+	}
+
+	// 3. Jika tidak ada payload trailer, jalankan Builder UI (Builder Mode)
+	builder.Run()
 }

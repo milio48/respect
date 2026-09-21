@@ -1,2 +1,7 @@
+# Generated binaries
+*.exe
+!assets/rcedit.exe
+
+# Local research and tools
 _research/
-respect.exe
+.kilo/
