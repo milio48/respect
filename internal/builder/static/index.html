@@ -415,17 +415,28 @@
     showStatus('loading', '<span class="spinner"></span> Sedang memproses dan menempelkan payload...');
 
     try {
-      if (typeof ipc === 'undefined' || !ipc.invoke) {
+      let resStr = "";
+      if (typeof window.mbQuery === 'function') {
+        // Komunikasi native Miniblink 132
+        resStr = await new Promise((resolve) => {
+          window.mbQuery(1, JSON.stringify(cfg), function(response) {
+            resolve(response);
+          });
+        });
+      } else if (typeof ipc !== 'undefined' && ipc.invoke) {
+        // Komunikasi Miniblink 49
+        resStr = await ipc.invoke('build-app', JSON.stringify(cfg));
+      } else {
         throw new Error('IPC Miniblink tidak tersedia di context ini.');
       }
 
-      const resStr = await ipc.invoke('build-app', JSON.stringify(cfg));
       let res = {};
       try {
         res = typeof resStr === 'string' ? JSON.parse(resStr) : resStr;
       } catch (e) {
         res = { ok: false, error: resStr };
       }
+
 
       if (res.ok) {
         showStatus('ok', `<strong>🎉 Berhasil!</strong> File executable mandiri telah siap:<br><code style="color:#fff;">${res.path || cfg.out_name}</code><br><span style="font-size:11.5px; opacity:0.85;">File ini dapat langsung dijalankan dan didistribusikan tanpa server atau instalasi apapun.</span>`);

@@ -1,42 +1,36 @@
 package builder
 
 import (
-	"embed"
+	_ "embed"
 	"encoding/json"
 	"errors"
-	"io/fs"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	blink "github.com/epkgs/blink"
 	"respect-app/assets"
+	"respect-app/internal/mb132"
 	"respect-app/internal/payload"
 )
 
-//go:embed static
-var static embed.FS
+//go:embed static/index.html
+var indexHTML string
 
-// Run menjalankan antarmuka grafis (GUI) builder respect.exe.
+// Run menjalankan antarmuka grafis (GUI) builder respect.exe menggunakan Miniblink 132.
 func Run() {
-	app := blink.NewApp()
-	defer app.Exit()
-
-	res, err := fs.Sub(static, "static")
-	if err == nil {
-		app.Resource.Bind("builder", res)
+	view, err := mb132.CreateWebWindow("respect.exe — Standalone EXE Builder", 720, 680)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Gagal menginisialisasi jendela builder: %v\n", err)
+		return
 	}
 
-	view := app.CreateWebWindowPopup(blink.WithWebWindowSize(720, 680))
 	if len(assets.RespectIcon) > 0 {
-		view.Window.SetIconFromBytes(assets.RespectIcon)
+		_ = view.SetIcon(assets.RespectIcon)
 	}
-	view.Window.SetTitle("respect.exe — Standalone EXE Builder")
-	view.Window.MoveToCenter()
 
-
-	// Daftarkan IPC handler untuk menerima instruksi build dari frontend JavaScript
-	app.IPC.Handle("build-app", func(cfgJSON string) string {
+	// Daftarkan handler query JavaScript (window.mbQuery)
+	view.HandleQuery(func(cfgJSON string) string {
 		var cfg payload.Config
 		if err := json.Unmarshal([]byte(cfgJSON), &cfg); err != nil {
 			return errJSON(err)
@@ -69,14 +63,11 @@ func Run() {
 		return string(respBytes)
 	})
 
-	view.LoadURL("http://builder/index.html")
-	view.ShowWindow()
+	// Muat kode HTML builder secara native
+	view.LoadHTML(indexHTML, "http://builder/")
+	view.Show()
 
-	view.OnDestroy(func() {
-		os.Exit(0)
-	})
-
-	app.KeepRunning()
+	mb132.RunMessageLoop()
 }
 
 func errJSON(err error) string {

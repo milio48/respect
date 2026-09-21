@@ -1,50 +1,29 @@
 package runtime
 
 import (
-	"crypto/sha256"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"unsafe"
-
-	blink "github.com/epkgs/blink"
 	"respect-app/assets"
+	"respect-app/internal/mb132"
 	"respect-app/internal/payload"
 )
 
-// User-Agent modern untuk kompatibilitas web maksimal
-const defaultModernUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\x00"
-
-// Run menampilkan jendela Miniblink sesuai konfigurasi payload.
+// Run menampilkan jendela Miniblink 132 sesuai konfigurasi payload.
 func Run(cfg *payload.Config) {
 	cfg.Defaults()
 
-	app := blink.NewApp()
-	defer app.Exit()
-
-	// Injeksi boot script untuk menyetel bahasa navigator ke Indonesia/Inggris (menimpa default zh-CN)
-	app.AddBootScript(`
-try {
-	Object.defineProperty(navigator, 'language', { get: () => 'id-ID' });
-	Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'] });
-} catch (e) {}
-`)
-
-	view := app.CreateWebWindowPopup(blink.WithWebWindowSize(int32(cfg.Width), int32(cfg.Height)))
-	if len(assets.RespectIcon) > 0 {
-		view.Window.SetIconFromBytes(assets.RespectIcon)
+	view, err := mb132.CreateWebWindow(cfg.Title, cfg.Width, cfg.Height)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Gagal menginisialisasi jendela runtime: %v\n", err)
+		return
 	}
-	view.Window.SetTitle(cfg.Title)
-	view.Window.MoveToCenter()
 
-	// Injeksi User-Agent modern ke webview Miniblink
-	uaBytes := []byte(defaultModernUA)
-	_, _, _ = app.CallFunc("wkeSetUserAgent", uintptr(view.GetWindowHandle()), uintptr(unsafe.Pointer(&uaBytes[0])))
-
-
+	if len(assets.RespectIcon) > 0 {
+		_ = view.SetIcon(assets.RespectIcon)
+	}
 
 	switch cfg.Mode {
 	case "url":
@@ -60,41 +39,17 @@ try {
 			fileURL := "file:///" + filepath.ToSlash(absPath)
 			view.LoadURL(fileURL)
 		} else {
-			loadErrorHTML(view, "Gagal memuat path file: "+err.Error())
+			view.LoadHTML(fmt.Sprintf("<h2>Gagal memuat file: %v</h2>", err), "http://localhost/")
 		}
 
 	case "html":
-		// Simpan HTML string ke temp file untuk mendukung dokumen single-file besar tanpa limitasi data URI
-		h := sha256.Sum256([]byte(cfg.Source))
-		tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("respect_app_%x.html", h[:8]))
-		if err := os.WriteFile(tmpFile, []byte(cfg.Source), 0644); err == nil {
-			view.LoadURL("file:///" + filepath.ToSlash(tmpFile))
-		} else {
-			// Fallback ke data URI jika penulisan temp file gagal
-			dataURI := "data:text/html;charset=utf-8," + url.PathEscape(cfg.Source)
-			view.LoadURL(dataURI)
-		}
+		view.LoadHTML(cfg.Source, "http://localhost/")
 
 	default:
-		loadErrorHTML(view, "Mode tidak dikenal: "+cfg.Mode)
+		view.LoadHTML(fmt.Sprintf("<h2>Mode tidak dikenal: %s</h2>", cfg.Mode), "http://localhost/")
 	}
 
-	view.ShowWindow()
+	view.Show()
 
-	view.OnDestroy(func() {
-		os.Exit(0)
-	})
-
-	app.KeepRunning()
-}
-
-func loadErrorHTML(view *blink.View, msg string) {
-	escaped := url.PathEscape(fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Error</title>
-<style>body{font-family:system-ui,sans-serif;padding:32px;background:#1a1a1a;color:#ff5555;text-align:center;}</style>
-</head>
-<body><h2>respect.exe — Kesalahan</h2><p>%s</p></body>
-</html>`, msg))
-	view.LoadURL("data:text/html;charset=utf-8," + escaped)
+	mb132.RunMessageLoop()
 }
