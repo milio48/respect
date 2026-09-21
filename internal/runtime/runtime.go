@@ -31,6 +31,14 @@ func Run(cfg *payload.Config) {
 		if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") && !strings.HasPrefix(targetURL, "file://") {
 			targetURL = "https://" + targetURL
 		}
+		// Jika target adalah Google dan belum memiliki parameter bahasa hl=, tambahkan hl=id
+		if strings.Contains(targetURL, "google.com") && !strings.Contains(targetURL, "hl=") {
+			if strings.Contains(targetURL, "?") {
+				targetURL += "&hl=id"
+			} else {
+				targetURL += "/?hl=id"
+			}
+		}
 		view.LoadURL(targetURL)
 
 	case "file":

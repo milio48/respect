@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -15,29 +16,34 @@ var (
 	dllErr  error
 	dllMod  *syscall.DLL
 
-	procMbInit                 *syscall.Proc
-	procMbCreateWebWindow      *syscall.Proc
-	procMbDestroyWebView       *syscall.Proc
-	procMbSetWindowTitle       *syscall.Proc
-	procMbMoveToCenter         *syscall.Proc
-	procMbMoveWindow           *syscall.Proc
-	procMbShowWindow           *syscall.Proc
-	procMbLoadURL              *syscall.Proc
-	procMbLoadHtmlWithBaseUrl  *syscall.Proc
-	procMbOnJsQuery            *syscall.Proc
-	procMbResponseQuery        *syscall.Proc
-	procMbOnDestroy            *syscall.Proc
-	procMbGetHostHWND          *syscall.Proc
-	procMbRunMessageLoop       *syscall.Proc
-	procMbExitMessageLoop      *syscall.Proc
-	procMbSetLanguage          *syscall.Proc
-	procMbSetUserAgent         *syscall.Proc
-	procMbSetCookieJarFullPath *syscall.Proc
-	procMbSetCookieJarPath     *syscall.Proc
-	procMbSetLocalStoragePath  *syscall.Proc
-	procMbOnCreateView         *syscall.Proc
-	procMbOnNavigation         *syscall.Proc
-
+	procMbInit                           *syscall.Proc
+	procMbUninit                         *syscall.Proc
+	procMbCreateWebWindow                *syscall.Proc
+	procMbDestroyWebView                 *syscall.Proc
+	procMbSetWindowTitle                 *syscall.Proc
+	procMbMoveToCenter                   *syscall.Proc
+	procMbMoveWindow                     *syscall.Proc
+	procMbShowWindow                     *syscall.Proc
+	procMbLoadURL                        *syscall.Proc
+	procMbLoadHtmlWithBaseUrl            *syscall.Proc
+	procMbOnJsQuery                      *syscall.Proc
+	procMbResponseQuery                  *syscall.Proc
+	procMbOnDestroy                      *syscall.Proc
+	procMbGetHostHWND                    *syscall.Proc
+	procMbRunMessageLoop                 *syscall.Proc
+	procMbExitMessageLoop                *syscall.Proc
+	procMbSetLanguage                    *syscall.Proc
+	procMbSetUserAgent                   *syscall.Proc
+	procMbSetCookieJarFullPath           *syscall.Proc
+	procMbSetCookieJarPath               *syscall.Proc
+	procMbSetLocalStoragePath            *syscall.Proc
+	procMbOnCreateView                   *syscall.Proc
+	procMbOnNavigation                   *syscall.Proc
+	procMbSetNavigationToNewWindowEnable *syscall.Proc
+	procMbOnLoadUrlBegin                 *syscall.Proc
+	procMbNetSetHTTPHeaderFieldUtf8      *syscall.Proc
+	procMbOnDidCreateScriptContext       *syscall.Proc
+	procMbRunJs                          *syscall.Proc
 
 	// Windows User32 untuk pengaturan icon jendela native
 	user32                = syscall.NewLazyDLL("user32.dll")
@@ -54,6 +60,97 @@ const (
 	DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
 	DefaultLanguage  = "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 )
+
+// Struktur Exception Handling Windows x64 untuk mencegah crash assertion Miniblink 132
+type EXCEPTION_RECORD struct {
+	ExceptionCode        uint32
+	ExceptionFlags       uint32
+	ExceptionRecord      uintptr
+	ExceptionAddress     uintptr
+	NumberParameters     uint32
+	ExceptionInformation [15]uintptr
+}
+
+type CONTEXT_AMD64 struct {
+	P1Home, P2Home, P3Home, P4Home, P5Home, P6Home uint64
+	ContextFlags                                    uint32
+	MxCsr                                           uint32
+	SegCs, SegDs, SegEs, SegFs, SegGs, SegSs        uint16
+	EFlags                                          uint32
+	Dr0, Dr1, Dr2, Dr3, Dr6, Dr7                    uint64
+	Rax, Rcx, Rdx, Rbx, Rsp, Rbp, Rsi, Rdi          uint64
+	R8, R9, R10, R11, R12, R13, R14, R15            uint64
+	Rip                                             uint64
+}
+
+type EXCEPTION_POINTERS struct {
+	ExceptionRecord *EXCEPTION_RECORD
+	ContextRecord   *CONTEXT_AMD64
+}
+
+var vehOnce sync.Once
+
+// installVehHandler memasang Windows Vectored Exception Handler tingkat kernel
+// untuk mencegat STATUS_BREAKPOINT (0x80000003 / int 3) dari Chromium assertions
+// sehingga browser tidak force close saat membuka situs-situs berat.
+func installVehHandler() {
+	vehOnce.Do(func() {
+		kernel32 := syscall.NewLazyDLL("kernel32.dll")
+		procAddVeh := kernel32.NewProc("AddVectoredExceptionHandler")
+
+		handler := syscall.NewCallback(func(ep *EXCEPTION_POINTERS) uintptr {
+			if ep == nil || ep.ExceptionRecord == nil {
+				return 0
+			}
+			code := ep.ExceptionRecord.ExceptionCode
+			if code == 0x40010006 || code == 0xE06D7363 {
+				return 0 // OutputDebugString atau C++ exception, biarkan runtime bawaan
+			}
+			if code == 0x80000003 { // STATUS_BREAKPOINT (DCHECK assertion internal Miniblink/Chromium)
+				if ep.ContextRecord != nil {
+					ep.ContextRecord.Rip++ // Lewati opcode int 3 (1 byte 0xCC)
+				}
+				return ^uintptr(0) // EXCEPTION_CONTINUE_EXECUTION (-1)
+			}
+			return 0 // EXCEPTION_CONTINUE_SEARCH
+		})
+
+		procAddVeh.Call(1, handler)
+	})
+}
+
+// cleanLocalArtifacts menghapus cookies.dat yang sempat tertulis di folder executable/cwd
+func cleanLocalArtifacts() {
+	self, err := os.Executable()
+	if err == nil {
+		dir := filepath.Dir(self)
+		_ = os.Remove(filepath.Join(dir, "cookies.dat"))
+		_ = os.Remove(filepath.Join(dir, "cookies.dat-journal"))
+	}
+	cwd, err := os.Getwd()
+	if err == nil {
+		_ = os.Remove(filepath.Join(cwd, "cookies.dat"))
+		_ = os.Remove(filepath.Join(cwd, "cookies.dat-journal"))
+	}
+}
+
+// spawnDetachedCleanup menjalankan proses cmd independen di background
+// dengan delay kecil untuk membersihkan cookies.dat jika libcurl menuliskannya di detik akhir proses
+func spawnDetachedCleanup() {
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cookieFile := filepath.Join(filepath.Dir(self), "cookies.dat")
+
+	cmdStr := fmt.Sprintf("ping 127.0.0.1 -n 1 >nul & del /f /q \"%s\" >nul 2>&1", cookieFile)
+	cmd := exec.Command("cmd.exe", "/C", cmdStr)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
+	_ = cmd.Start()
+}
 
 // findDLL mencari path DLL Miniblink 132 (blink.dll atau mb132_x64.dll)
 func findDLL() (string, error) {
@@ -83,6 +180,9 @@ func findDLL() (string, error) {
 // Init memuat DLL dan menginisialisasi engine Miniblink 132
 func Init() error {
 	dllOnce.Do(func() {
+		// Bersihkan sisa cookies lama sebelum engine diinisialisasi
+		cleanLocalArtifacts()
+
 		dllPath, err := findDLL()
 		if err != nil {
 			dllErr = err
@@ -95,10 +195,14 @@ func Init() error {
 			return
 		}
 
+		// Pasang proteksi crash assertion Windows VEH
+		installVehHandler()
+
 		procMbInit, dllErr = dllMod.FindProc("mbInit")
 		if dllErr != nil {
 			return
 		}
+		procMbUninit, _ = dllMod.FindProc("mbUninit")
 		procMbCreateWebWindow, dllErr = dllMod.FindProc("mbCreateWebWindow")
 		if dllErr != nil {
 			return
@@ -180,15 +284,14 @@ func Init() error {
 		if dllErr != nil {
 			return
 		}
+		procMbSetNavigationToNewWindowEnable, _ = dllMod.FindProc("mbSetNavigationToNewWindowEnable")
+		procMbOnLoadUrlBegin, _ = dllMod.FindProc("mbOnLoadUrlBegin")
+		procMbNetSetHTTPHeaderFieldUtf8, _ = dllMod.FindProc("mbNetSetHTTPHeaderFieldUtf8")
+		procMbOnDidCreateScriptContext, _ = dllMod.FindProc("mbOnDidCreateScriptContext")
+		procMbRunJs, _ = dllMod.FindProc("mbRunJs")
 
 		// Panggil mbInit dengan settings default NULL
 		procMbInit.Call(0)
-
-		// Bersihkan file cookies.dat lokal jika ada sisa eksekusi sebelumnya
-		self, err := os.Executable()
-		if err == nil {
-			_ = os.Remove(filepath.Join(filepath.Dir(self), "cookies.dat"))
-		}
 	})
 
 	return dllErr
@@ -199,13 +302,14 @@ type WebView struct {
 	Handle uintptr
 	hwnd   uintptr
 
-	onDestroyCb    uintptr
-	onDestroyUser  func()
+	onDestroyCb   uintptr
+	onDestroyUser func()
 
-	onQueryCb      uintptr
-	onQueryUser    func(req string) string
+	onQueryCb   uintptr
+	onQueryUser func(req string) string
 
-	onCreateViewCb uintptr
+	onLoadBeginCb uintptr
+	onScriptCtxCb uintptr
 }
 
 // CreateWebWindow membuat jendela webview popup baru
@@ -234,28 +338,57 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 		hwnd:   hwnd,
 	}
 
-	// 1. Set User Agent & Bahasa default (menghindari bahasa Cina & tampilan jadul)
+	// 1. Set User Agent & Bahasa default
 	wv.SetUserAgent(DefaultUserAgent)
 	wv.SetLanguage(DefaultLanguage)
 
-	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData/Temp agar folder aplikasi tetap bersih
+	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData agar folder aplikasi tetap bersih
 	wv.SetIsolatedStorage()
 
-	// 3. Pasang handler pembukaan jendela baru (target="_blank" / popup) agar tidak force close
-	wv.onCreateViewCb = syscall.NewCallback(func(h uintptr, param uintptr, navType int32, urlPtr *byte, feat uintptr) uintptr {
-		if urlPtr != nil {
-			slice := unsafe.Slice(urlPtr, 2048)
-			var n int
-			for n = 0; n < len(slice) && slice[n] != 0; n++ {
-			}
-			newURL := string(slice[:n])
-			if newURL != "" {
-				wv.LoadURL(newURL)
-			}
-		}
-		return 0
-	})
-	procMbOnCreateView.Call(wv.Handle, wv.onCreateViewCb, 0)
+	// 3. Matikan pembuatan popup jendela baru agar link target="_blank" otomatis navigasi di jendela aktif secara native
+	if procMbSetNavigationToNewWindowEnable != nil {
+		procMbSetNavigationToNewWindowEnable.Call(wv.Handle, 0)
+	}
+
+	// 4. Injeksi HTTP Header (Accept-Language dan User-Agent) ke setiap request jaringan
+	// Menjamin Google dan website lain tidak pernah mendeteksi bahasa Cina
+	if procMbOnLoadUrlBegin != nil && procMbNetSetHTTPHeaderFieldUtf8 != nil {
+		langKey := []byte("Accept-Language\x00")
+		langVal := []byte(DefaultLanguage + "\x00")
+		uaKey := []byte("User-Agent\x00")
+		uaVal := []byte(DefaultUserAgent + "\x00")
+
+		wv.onLoadBeginCb = syscall.NewCallback(func(h, param, urlPtr, jobPtr uintptr) uintptr {
+			procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&langKey[0])), uintptr(unsafe.Pointer(&langVal[0])), 0)
+			procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&uaKey[0])), uintptr(unsafe.Pointer(&uaVal[0])), 0)
+			return 0 // 0 = lanjutkan request secara normal
+		})
+		procMbOnLoadUrlBegin.Call(wv.Handle, wv.onLoadBeginCb, 0)
+	}
+
+	// 5. Injeksi skrip context V8: override navigator.language dan terapkan smooth scroll CSS
+	if procMbOnDidCreateScriptContext != nil && procMbRunJs != nil {
+		preloadScript := []byte(`
+try {
+    Object.defineProperty(navigator, 'language', { get: () => 'id-ID', configurable: true });
+    Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'], configurable: true });
+} catch(e) {}
+try {
+    if (!document.getElementById('__respect_smooth_style')) {
+        const style = document.createElement('style');
+        style.id = '__respect_smooth_style';
+        style.textContent = 'html, body { scroll-behavior: smooth !important; }';
+        (document.head || document.documentElement).appendChild(style);
+    }
+} catch(e) {}
+` + "\x00")
+
+		wv.onScriptCtxCb = syscall.NewCallback(func(h, param, frameId, ctx, extGroup, worldId uintptr) uintptr {
+			procMbRunJs.Call(h, frameId, uintptr(unsafe.Pointer(&preloadScript[0])), 0, 0, 0, 0)
+			return 0
+		})
+		procMbOnDidCreateScriptContext.Call(wv.Handle, wv.onScriptCtxCb, 0)
+	}
 
 	if title != "" {
 		wv.SetTitle(title)
@@ -268,12 +401,6 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 			wv.onDestroyUser()
 		}
 		ExitMessageLoop()
-
-		// Bersihkan file cookies.dat lokal jika tertulis di folder executable
-		self, err := os.Executable()
-		if err == nil {
-			_ = os.Remove(filepath.Join(filepath.Dir(self), "cookies.dat"))
-		}
 		return 0
 	})
 	procMbOnDestroy.Call(wv.Handle, wv.onDestroyCb, 0)
@@ -420,6 +547,13 @@ func RunMessageLoop() {
 	if procMbRunMessageLoop != nil {
 		procMbRunMessageLoop.Call()
 	}
+
+	// Setelah message loop berhenti, uninitialization dan bersihkan cookies
+	if procMbUninit != nil {
+		procMbUninit.Call()
+	}
+	cleanLocalArtifacts()
+	spawnDetachedCleanup()
 }
 
 // ExitMessageLoop menghentikan message loop
@@ -427,4 +561,6 @@ func ExitMessageLoop() {
 	if procMbExitMessageLoop != nil {
 		procMbExitMessageLoop.Call()
 	}
+	cleanLocalArtifacts()
+	spawnDetachedCleanup()
 }
