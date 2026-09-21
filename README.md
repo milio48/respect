@@ -8,17 +8,20 @@
 
 Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 
-| Pilihan | 🌟 **Respect Modern (`respect.exe`)** | 🪶 **Respect Lite (`respect-lite.exe`)** |
+| Fitur | 🌟 **Respect Modern (`respect.exe`)** | 🪶 **Respect Lite (`respect-lite.exe`)** |
 |---|---|---|
 | **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | **File tunggal mandiri**, langsung jalan tanpa file lain |
-| **Isi File** | File `respect.exe` didampingi file `blink.dll` | **Hanya 1 file `.exe`** (sangat praktis) |
+| **Bentuk Distribusi** | File `respect.exe` didampingi file `blink.dll` | **1 file `.exe` mandiri** (semua sudah ter-embed) |
+| **Ukuran File Biner** | **~3.3 MB** (`respect.exe`) + ~68.9 MB (`blink.dll`) | **~57 MB** (64-bit) / **~50 MB** (32-bit) |
+| **Ukuran Download (ZIP)** | **~28 MB** (arsip `.zip`) | **~25 MB** (arsip `.zip` atau langsung `.exe`) |
 | **Engine Browser** | Chromium 132 (Terbaru & Cepat) | Miniblink 49 (Sangat Ringan & Hemat RAM) |
-| **Kompatibilitas** | Windows 7, 8, 10, 11 (64-bit) | Windows XP, 7, 8, 10, 11 (32-bit & 64-bit) |
-| **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), laptop lawas, utilitas kantor |
+| **Dukungan Windows** | Windows 7, 8, 10, 11 (64-bit) | Windows 7, 8, 10, 11 (64-bit)* / XP s.d. 11 (32-bit)* |
+| **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), utilitas kantor, komputer lawas |
 
 > **💡 Panduan Cepat:**
-> - Jika ingin tampilan web terbaik dan modern: **Unduh Respect Modern**.
-> - Jika ingin file tunggal yang ringkas untuk dibawa di flashdisk atau komputer lama: **Unduh Respect Lite**.
+> - Jika ingin tampilan web terbaik dan modern: **Unduh Respect Modern** (`respect.exe`).
+> - Jika ingin file tunggal yang ringkas untuk dibawa di flashdisk atau komputer kantor/kasir: **Unduh Respect Lite** (`respect-lite.exe`).
+> - *\*Catatan Arsitektur:* Biner default `respect-lite.exe` adalah 64-bit. Tersedia pula build 32-bit (`x86`) untuk kompatibilitas penuh dengan Windows XP / 7 32-bit.
 
 ---
 
