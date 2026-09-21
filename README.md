@@ -1,116 +1,108 @@
 # ⚡ Respect Desktop
 
-**Respect Desktop** adalah alat praktis untuk mengubah situs Web, aplikasi web lokal, atau kode HTML menjadi aplikasi desktop Windows mandiri (`.exe`) siap pakai tanpa perlu instalasi server atau coding tambahan.
+**Respect Desktop** adalah aplikasi Windows praktis untuk mengubah situs website, web app, atau file HTML menjadi aplikasi desktop (`.exe`) mandiri siap pakai — **hanya dengan beberapa klik, tanpa perlu install server, Node.js, atau coding tambahan!**
 
 ---
 
-## 🎯 Panduan Memilih Edisi (Untuk Pengguna)
+## 🎯 Pilih Edisi yang Tepat untuk Anda
 
-Respect tersedia dalam dua edisi rilis siap pakai:
+Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 
-| Fitur | 🌟 **Respect Modern (`respect.exe`)** | 🪶 **Respect Lite (`respect-lite.exe`)** |
+| Pilihan | 🌟 **Respect Modern (`respect.exe`)** | 🪶 **Respect Lite (`respect-lite.exe`)** |
 |---|---|---|
-| **Kelebihan Utama** | Performa tinggi, mendukung web modern & grafik berat | File tunggal portabel, tanpa ketergantungan file lain |
-| **Bentuk Aplikasi** | File `respect.exe` + didampingi `blink.dll` | **Satu file `.exe` mandiri** (langsung jalan) |
-| **Ukuran Download** | ~3.3 MB (exe) + ~69 MB (dll) | ~57 MB (semua sudah terintegrasi di dalam) |
-| **Engine Web** | Chromium 132 (Terbaru & Cepat) | Miniblink 49 (Ringan & Hemat Memori) |
-| **Dukungan Windows** | Windows 7, 8, 10, 11 (64-bit) | Windows XP, 7, 8, 10, 11 (32-bit & 64-bit) |
-| **Rekomendasi Untuk** | Website modern, dashboard SPA, grafik WebGL, SaaS | Web sederhana, aplikasi kasir (POS), laptop lama/spesifikasi rendah |
+| **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | **File tunggal mandiri**, langsung jalan tanpa file lain |
+| **Isi File** | File `respect.exe` didampingi file `blink.dll` | **Hanya 1 file `.exe`** (sangat praktis) |
+| **Engine Browser** | Chromium 132 (Terbaru & Cepat) | Miniblink 49 (Sangat Ringan & Hemat RAM) |
+| **Kompatibilitas** | Windows 7, 8, 10, 11 (64-bit) | Windows XP, 7, 8, 10, 11 (32-bit & 64-bit) |
+| **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), laptop lawas, utilitas kantor |
 
-> **💡 Rekomendasi:** 
-> - Pilih **Respect Modern** jika Anda ingin membuka website masa kini dengan tampilan terbaik.
-> - Pilih **Respect Lite** jika Anda ingin file tunggal yang sangat mudah dipindah ke flashdisk atau dijalankan di komputer kantor/kasir dengan Windows lama.
-
----
-
-## 🚀 Cara Penggunaan (End-User)
-
-### 1. Menggunakan Tampilan Grafis (GUI Builder) — Paling Mudah!
-
-1. Unduh edisi yang Anda inginkan dari halaman [Releases](../../releases).
-2. Klik ganda pada **`respect.exe`** (atau **`respect-lite.exe`**).
-3. Jendela antarmuka builder akan terbuka:
-   - Pilih mode: **URL Website**, **HTML Inline**, atau **File HTML Lokal**.
-   - Masukkan alamat situs (misalnya `https://app.anda.com`) atau pilih file HTML lokal Anda.
-   - Atur nama file aplikasi (misal `AplikasiSaya.exe`) dan judul jendela yang diinginkan.
-   - *(Opsional)* Pilih file icon `.ico` kustom Anda.
-4. Klik tombol **Build Standalone EXE**.
-5. Selesai! File `.exe` baru Anda langsung siap dijalankan dan dibagikan.
+> **💡 Panduan Cepat:**
+> - Jika ingin tampilan web terbaik dan modern: **Unduh Respect Modern**.
+> - Jika ingin file tunggal yang ringkas untuk dibawa di flashdisk atau komputer lama: **Unduh Respect Lite**.
 
 ---
 
-### 2. Menggunakan Baris Perintah (CLI) — Untuk Otomasi
+## 🚀 Cara Menggunakan (Sangat Mudah!)
 
-Jika Anda terbiasa dengan Command Prompt atau PowerShell, Anda dapat membuat aplikasi secara instan tanpa membuka jendela antarmuka:
+1. **Unduh aplikasi** dari halaman [GitHub Releases](../../releases).
+2. **Buka aplikasi**:
+   - Untuk Respect Modern: Ekstrak zip, lalu klik dua kali **`respect.exe`**.
+   - Untuk Respect Lite: Cukup klik dua kali **`respect-lite.exe`**.
+3. **Isi formulir pembuatan**:
+   - Masukkan alamat web (contoh: `https://aplikasisaya.com`) atau pilih file HTML lokal Anda.
+   - Beri nama aplikasi Anda (contoh: `AplikasiSaya.exe`).
+   - *(Opsional)* Pilih gambar icon `.ico` Anda sendiri.
+4. Klik tombol hijau **Build Standalone EXE**.
+5. **Selesai!** File `.exe` buatan Anda langsung jadi di folder yang sama dan siap digunakan atau dibagikan ke siapa saja.
 
-```powershell
-# Cek versi dan varian engine
-.\respect.exe --version
+---
 
-# Buat aplikasi dari URL website
-.\respect.exe --build --source "https://google.com" --out "GoogleApp.exe" --title "Google Desktop"
-
-# Buat aplikasi dari file HTML lokal dengan ukuran jendela kustom
-.\respect.exe --build --source "C:\proyek\index.html" --mode file --width 1280 --height 800 --out "Dashboard.exe"
-
-# Buat aplikasi dengan menyematkan icon kustom (.ico)
-.\respect.exe --build --source "https://my-app.com" --icon "app-icon.ico" --out "MyApp.exe"
-```
+## 💡 Fitur Lanjutan (Opsional)
 
 <details>
-<summary>📋 <b>Daftar Parameter Perintah CLI Lengkap</b></summary>
+<summary>💻 <b>Klik di sini jika ingin menggunakan Baris Perintah (CLI) untuk Otomasi</b></summary>
 
-| Parameter | Deskripsi | Default |
-|---|---|---|
-| `--version`, `-v` | Menampilkan nomor versi dan identitas engine | - |
-| `--build` | Mengaktifkan mode pembuatan file executable | - |
-| `--mode` | Jenis konten: `url`, `file`, atau `html` | `url` |
-| `--source` | Alamat URL, lokasi path file HTML, atau kode HTML inline | *(Wajib)* |
-| `--out` | Nama file `.exe` yang akan dihasilkan | `demo.exe` |
-| `--title` | Judul yang tampil pada title bar jendela aplikasi | `respect.exe` |
-| `--width` | Lebar jendela aplikasi saat pertama kali dibuka (piksel) | `800` |
-| `--height` | Tinggi jendela aplikasi saat pertama kali dibuka (piksel) | `600` |
-| `--icon` | Lokasi file icon `.ico` (jika kosong, icon default Respect digunakan) | `""` |
+Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command Prompt atau PowerShell:
+
+```powershell
+# Cek versi aplikasi
+.\respect.exe --version
+
+# Buat aplikasi langsung dari URL website
+.\respect.exe --build --source "https://google.com" --out "GoogleDesktop.exe" --title "Google"
+
+# Buat aplikasi dari file HTML lokal dengan ukuran jendela tertentu
+.\respect.exe --build --source "C:\proyek\index.html" --mode file --width 1280 --height 800 --out "Dashboard.exe"
+
+# Buat aplikasi dengan icon kustom (.ico)
+.\respect.exe --build --source "https://my-app.com" --icon "icon.ico" --out "MyApp.exe"
+```
+
+### Parameter CLI
+- `--build` : Mengaktifkan pembuatan file executable dari terminal
+- `--source` : URL website atau path file HTML
+- `--out` : Nama file output (default: `demo.exe`)
+- `--title` : Judul jendela aplikasi
+- `--width` / `--height` : Ukuran jendela awal aplikasi
+- `--icon` : Path file icon `.ico` (opsional)
+- `--version` : Cek versi engine dan edisi yang aktif
 
 </details>
 
 ---
 
-## 💻 Area Pengembang (Developer & Source Build)
+## 🛠️ Area Pengembang (Developer & Source Code)
 
 <details>
-<summary>🛠️ <b>Klik di sini untuk melihat Panduan Kompilasi & Arsitektur Kode</b></summary>
+<summary>🔧 <b>Klik di sini untuk Panduan Kompilasi dari Source Code & Kontribusi</b></summary>
 
-### Prasyarat Pengembangan
+### Prasyarat
 - Sistem Operasi: **Windows 10/11 (64-bit)**
-- **Go 1.25+** terinstal di sistem
+- **Go 1.25+**
 - PowerShell 5.1+
 
 ---
 
-### Cara Kompilasi dari Source Code
+### Cara Kompilasi (Build) Lokal
 
-#### Opsi 1: Menggunakan Skrip Otomatis (Direkomendasikan)
-Tersedia skrip PowerShell untuk mengompilasi kedua varian dan menyuntikkan icon secara otomatis:
-
+#### 1. Menggunakan Skrip PowerShell Otomatis
 ```powershell
 # Bangun kedua edisi sekaligus ke folder dist/
 .\scripts\build.ps1 -Target all
 
-# Bangun hanya Respect Modern (respect.exe)
+# Bangun hanya Respect Modern (respect.exe + blink.dll)
 .\scripts\build.ps1 -Target modern
 
-# Bangun hanya Respect Lite (respect-lite.exe)
+# Bangun hanya Respect Lite (respect-lite.exe single file)
 .\scripts\build.ps1 -Target lite
 ```
 
-#### Opsi 2: Menggunakan Perintah Go Manual
-
+#### 2. Menggunakan Perintah Go Manual
 ```powershell
-# 1. Kompilasi Respect Modern (Chromium 132)
+# Respect Modern (Chromium 132)
 go build -tags v132 -ldflags="-s -w -H windowsgui" -o respect.exe .
 
-# 2. Kompilasi Respect Lite (Miniblink 49)
+# Respect Lite (Miniblink 49)
 go build -ldflags="-s -w -H windowsgui" -o respect-lite.exe .
 ```
 
@@ -120,7 +112,7 @@ go build -ldflags="-s -w -H windowsgui" -o respect-lite.exe .
 
 ```
 respect/
-├── .github/workflows/   # GitHub Actions untuk automated Windows build & release
+├── .github/workflows/   # CI/CD GitHub Actions untuk rilis Windows otomatis
 ├── assets/              # Icon resmi (.ico) dan alat injeksi binary (rcedit.exe)
 ├── internal/
 │   ├── builder/         # UI Builder GUI (builder_v132.go & builder_v49.go)
@@ -136,12 +128,12 @@ respect/
 
 ---
 
-### Rilis Otomatis (GitHub Actions)
-Repository ini telah dilengkapi dengan workflow CI/CD di `.github/workflows/release.yml`. Saat tag rilis dibuat (misal `git tag v1.0.0 && git push origin v1.0.0`), GitHub Actions akan secara otomatis:
-1. Mengompilasi `respect.exe` dan `respect-lite.exe` pada Windows runner.
-2. Menyuntikkan icon aplikasi resmi.
-3. Mengarsipkan bundel `.zip` untuk varian Modern dan Lite.
-4. Menerbitkan rilis baru pada tab GitHub Releases.
+### Otomasi Rilis GitHub Actions
+Workflow rilis tersedia di `.github/workflows/release.yml`. Ketika tag versi dibuat (misal `git tag v1.0.0 && git push origin v1.0.0`), GitHub Actions akan:
+1. Mengompilasi `respect.exe` dan `respect-lite.exe` di mesin Windows runner.
+2. Menyuntikkan icon aplikasi resmi Respect.
+3. Mengarsipkan bundel `.zip` untuk rilis.
+4. Menerbitkan aset secara otomatis ke GitHub Releases.
 
 </details>
 
