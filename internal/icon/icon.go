@@ -45,3 +45,15 @@ func InjectIcon(targetExe, iconPath string) error {
 
 	return nil
 }
+
+// InjectDefaultIcon menyuntikkan icon default Respect ke targetExe
+func InjectDefaultIcon(targetExe string) error {
+	if len(assets.RespectIcon) == 0 {
+		return nil
+	}
+	tempIco := filepath.Join(os.TempDir(), "respect_default.ico")
+	if err := os.WriteFile(tempIco, assets.RespectIcon, 0644); err != nil {
+		return err
+	}
+	return InjectIcon(targetExe, tempIco)
+}

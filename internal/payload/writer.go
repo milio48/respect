@@ -11,6 +11,9 @@ import (
 // IconInjector adalah fungsi opsional untuk menginjeksi icon ke base EXE sebelum trailer ditempel.
 var IconInjector func(targetExe, iconPath string) error
 
+// DefaultIconInjector menyuntikkan icon bawaan Respect jika user tidak menyertakan icon kustom.
+var DefaultIconInjector func(targetExe string) error
+
 // BuildSelf menghasilkan file EXE baru berdasarkan EXE ini sendiri,
 // dengan config di-append di ujungnya (trailer format).
 func BuildSelf(cfg Config) error {
@@ -63,6 +66,9 @@ func BuildSelf(cfg Config) error {
 		if err := IconInjector(cfg.OutName, cfg.IconPath); err != nil {
 			return err
 		}
+	} else if DefaultIconInjector != nil {
+		// Jika tidak ada icon kustom, suntikkan icon resmi Respect secara otomatis
+		_ = DefaultIconInjector(cfg.OutName)
 	}
 
 	// Buka file dalam mode append untuk menempelkan trailer payload

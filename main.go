@@ -16,6 +16,7 @@ import (
 func init() {
 	// Hubungkan icon injector ke payload builder
 	payload.IconInjector = icon.InjectIcon
+	payload.DefaultIconInjector = icon.InjectDefaultIcon
 }
 
 // attachConsole menghubungkan stdout/stderr ke terminal pemanggil di Windows (jika ada)

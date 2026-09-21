@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -28,6 +29,7 @@ var (
 	procMbLoadHtmlWithBaseUrl            *syscall.Proc
 	procMbOnJsQuery                      *syscall.Proc
 	procMbResponseQuery                  *syscall.Proc
+	procMbOnClose                        *syscall.Proc
 	procMbOnDestroy                      *syscall.Proc
 	procMbGetHostHWND                    *syscall.Proc
 	procMbRunMessageLoop                 *syscall.Proc
@@ -45,16 +47,22 @@ var (
 	procMbOnDidCreateScriptContext       *syscall.Proc
 	procMbRunJs                          *syscall.Proc
 
-	// Windows User32 untuk pengaturan icon jendela native
-	user32                = syscall.NewLazyDLL("user32.dll")
-	procSendMessageW      = user32.NewProc("SendMessageW")
-	procCreateIconFromRes = user32.NewProc("CreateIconFromResourceEx")
+	// Windows User32 & Kernel32 untuk icon dan manajemen proses
+	user32               = syscall.NewLazyDLL("user32.dll")
+	kernel32             = syscall.NewLazyDLL("kernel32.dll")
+	procSendMessageW     = user32.NewProc("SendMessageW")
+	procLoadImageW       = user32.NewProc("LoadImageW")
+	procLoadIconW        = user32.NewProc("LoadIconW")
+	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
 )
 
 const (
 	WM_SETICON = 0x0080
 	ICON_SMALL = 0
 	ICON_BIG   = 1
+
+	IMAGE_ICON     = 1
+	LR_LOADFROMFILE = 0x0010
 
 	// Modern Chrome User-Agent
 	DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
@@ -95,7 +103,6 @@ var vehOnce sync.Once
 // sehingga browser tidak force close saat membuka situs-situs berat.
 func installVehHandler() {
 	vehOnce.Do(func() {
-		kernel32 := syscall.NewLazyDLL("kernel32.dll")
 		procAddVeh := kernel32.NewProc("AddVectoredExceptionHandler")
 
 		handler := syscall.NewCallback(func(ep *EXCEPTION_POINTERS) uintptr {
@@ -150,6 +157,41 @@ func spawnDetachedCleanup() {
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
 	}
 	_ = cmd.Start()
+}
+
+// GetAppSandboxDir mengembalikan path folder penyimpanan sandbox unik untuk aplikasi ini
+// di %LOCALAPPDATA%\respect\apps\<appName>\ sehingga sesi antar aplikasi tidak saling bentrok.
+func GetAppSandboxDir() string {
+	base := os.Getenv("LOCALAPPDATA")
+	if base == "" {
+		base = os.TempDir()
+	}
+	appName := "default"
+	self, err := os.Executable()
+	if err == nil {
+		name := strings.TrimSuffix(filepath.Base(self), filepath.Ext(self))
+		if name != "" {
+			appName = name
+		}
+	}
+	// Normalisasi nama folder
+	appName = strings.ToLower(strings.TrimSpace(appName))
+	var clean strings.Builder
+	for _, r := range appName {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			clean.WriteRune(r)
+		} else {
+			clean.WriteRune('_')
+		}
+	}
+	appName = clean.String()
+	if appName == "" {
+		appName = "default"
+	}
+
+	appDir := filepath.Join(base, "respect", "apps", appName)
+	_ = os.MkdirAll(appDir, 0755)
+	return appDir
 }
 
 // findDLL mencari path DLL Miniblink 132 (blink.dll atau mb132_x64.dll)
@@ -243,6 +285,7 @@ func Init() error {
 		if dllErr != nil {
 			return
 		}
+		procMbOnClose, _ = dllMod.FindProc("mbOnClose")
 		procMbOnDestroy, dllErr = dllMod.FindProc("mbOnDestroy")
 		if dllErr != nil {
 			return
@@ -302,6 +345,7 @@ type WebView struct {
 	Handle uintptr
 	hwnd   uintptr
 
+	onCloseCb     uintptr
 	onDestroyCb   uintptr
 	onDestroyUser func()
 
@@ -342,7 +386,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 	wv.SetUserAgent(DefaultUserAgent)
 	wv.SetLanguage(DefaultLanguage)
 
-	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData agar folder aplikasi tetap bersih
+	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData sandbox unik per nama aplikasi
 	wv.SetIsolatedStorage()
 
 	// 3. Matikan pembuatan popup jendela baru agar link target="_blank" otomatis navigasi di jendela aktif secara native
@@ -366,7 +410,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 		procMbOnLoadUrlBegin.Call(wv.Handle, wv.onLoadBeginCb, 0)
 	}
 
-	// 5. Injeksi skrip context V8: override navigator.language dan terapkan smooth scroll CSS
+	// 5. Injeksi skrip context V8: override navigator.language dan terapkan akselerasi mouse wheel yang natural
 	if procMbOnDidCreateScriptContext != nil && procMbRunJs != nil {
 		preloadScript := []byte(`
 try {
@@ -374,11 +418,30 @@ try {
     Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'], configurable: true });
 } catch(e) {}
 try {
-    if (!document.getElementById('__respect_smooth_style')) {
-        const style = document.createElement('style');
-        style.id = '__respect_smooth_style';
-        style.textContent = 'html, body { scroll-behavior: smooth !important; }';
-        (document.head || document.documentElement).appendChild(style);
+    if (!window.__respect_wheel_hooked) {
+        window.__respect_wheel_hooked = true;
+        function getScrollParent(el) {
+            if (!el || el === document) return document.scrollingElement || document.documentElement;
+            const isScroll = (node) => {
+                if (!node || node.nodeType !== 1) return false;
+                const s = window.getComputedStyle(node);
+                return (s.overflowY === 'auto' || s.overflowY === 'scroll') && node.scrollHeight > node.clientHeight;
+            };
+            while (el && el !== document.body && el !== document.documentElement) {
+                if (isScroll(el)) return el;
+                el = el.parentElement;
+            }
+            return document.scrollingElement || document.documentElement;
+        }
+        window.addEventListener('wheel', function(e) {
+            if (e.ctrlKey) return;
+            const scroller = getScrollParent(e.target);
+            if (!scroller) return;
+            // Dampen delta agar pergerakan scroll terasa natural dan responsif (55% dari delta mentah Windows)
+            scroller.scrollTop += e.deltaY * 0.55;
+            if (e.deltaX) scroller.scrollLeft += e.deltaX * 0.55;
+            e.preventDefault();
+        }, { passive: false });
     }
 } catch(e) {}
 ` + "\x00")
@@ -394,6 +457,19 @@ try {
 		wv.SetTitle(title)
 	}
 	wv.MoveToCenter()
+
+	// 6. Pasang handler OnClose agar saat tombol X titlebar diklik,
+	// message loop segera dihentikan sehingga proses langsung keluar dari Task Manager
+	if procMbOnClose != nil {
+		wv.onCloseCb = syscall.NewCallback(func(h, param, unuse uintptr) uintptr {
+			if wv.onDestroyUser != nil {
+				wv.onDestroyUser()
+			}
+			ExitMessageLoop()
+			return 0
+		})
+		procMbOnClose.Call(wv.Handle, wv.onCloseCb, 0)
+	}
 
 	// Pasang callback OnDestroy standar
 	wv.onDestroyCb = syscall.NewCallback(func(v, p1, p2 uintptr) uintptr {
@@ -430,27 +506,26 @@ func (v *WebView) SetLanguage(lang string) {
 	}
 }
 
-// SetIsolatedStorage memindahkan penyimpanan Cookie dan LocalStorage ke LocalAppData
-// agar folder instalasi aplikasi tetap bersih tanpa file cookie/LocalStorage liar
+// SetIsolatedStorage memindahkan penyimpanan Cookie dan LocalStorage ke sandbox aplikasi di LocalAppData
+// agar folder instalasi aplikasi tetap bersih dan sesi antar aplikasi Respect tidak saling bertabrakan.
 func (v *WebView) SetIsolatedStorage() {
-	appData := os.Getenv("LOCALAPPDATA")
-	if appData == "" {
-		appData = os.TempDir()
-	}
-	cacheDir := filepath.Join(appData, "respect", "cache")
+	appDir := GetAppSandboxDir()
+	cacheDir := filepath.Join(appDir, "cache")
+	storageDir := filepath.Join(appDir, "storage")
 	_ = os.MkdirAll(cacheDir, 0755)
+	_ = os.MkdirAll(storageDir, 0755)
 
 	cookieFile, err1 := syscall.UTF16PtrFromString(filepath.Join(cacheDir, "cookies.dat"))
-	storageDir, err2 := syscall.UTF16PtrFromString(cacheDir)
+	storagePath, err2 := syscall.UTF16PtrFromString(storageDir)
 
 	if err1 == nil && procMbSetCookieJarFullPath != nil {
 		procMbSetCookieJarFullPath.Call(v.Handle, uintptr(unsafe.Pointer(cookieFile)))
 	}
 	if err2 == nil && procMbSetCookieJarPath != nil {
-		procMbSetCookieJarPath.Call(v.Handle, uintptr(unsafe.Pointer(storageDir)))
+		procMbSetCookieJarPath.Call(v.Handle, uintptr(unsafe.Pointer(storagePath)))
 	}
 	if err2 == nil && procMbSetLocalStoragePath != nil {
-		procMbSetLocalStoragePath.Call(v.Handle, uintptr(unsafe.Pointer(storageDir)))
+		procMbSetLocalStoragePath.Call(v.Handle, uintptr(unsafe.Pointer(storagePath)))
 	}
 }
 
@@ -515,24 +590,38 @@ func (v *WebView) HandleQuery(handler func(req string) string) {
 	procMbOnJsQuery.Call(v.Handle, v.onQueryCb, 0)
 }
 
-// SetIcon memasang icon jendela dari byte data .ico
+// SetIcon memasang icon jendela dari byte data .ico atau resource PE bawaan
 func (v *WebView) SetIcon(iconBytes []byte) error {
-	if v.hwnd == 0 || len(iconBytes) == 0 {
+	if v.hwnd == 0 {
 		return nil
 	}
 
-	if len(iconBytes) < 22 {
-		return nil
+	var hIcon uintptr
+
+	// 1. Coba muat dari file icon temporer jika iconBytes disediakan
+	if len(iconBytes) > 0 {
+		tempIco := filepath.Join(os.TempDir(), "respect_win_icon.ico")
+		if err := os.WriteFile(tempIco, iconBytes, 0644); err == nil {
+			icoPathW, errW := syscall.UTF16PtrFromString(tempIco)
+			if errW == nil {
+				hIcon, _, _ = procLoadImageW.Call(
+					0,
+					uintptr(unsafe.Pointer(icoPathW)),
+					IMAGE_ICON,
+					0, 0,
+					LR_LOADFROMFILE,
+				)
+			}
+		}
 	}
 
-	hIcon, _, _ := procCreateIconFromRes.Call(
-		uintptr(unsafe.Pointer(&iconBytes[22])),
-		uintptr(len(iconBytes)-22),
-		1, // isIcon = TRUE
-		0x00030000,
-		0, 0,
-		0,
-	)
+	// 2. Jika gagal atau tidak ada bytes, muat langsung dari PE Resource file EXE saat ini (Resource ID 1)
+	if hIcon == 0 {
+		hModule, _, _ := procGetModuleHandleW.Call(0)
+		if hModule != 0 {
+			hIcon, _, _ = procLoadIconW.Call(hModule, uintptr(1))
+		}
+	}
 
 	if hIcon != 0 {
 		procSendMessageW.Call(v.hwnd, WM_SETICON, ICON_BIG, hIcon)
@@ -554,6 +643,7 @@ func RunMessageLoop() {
 	}
 	cleanLocalArtifacts()
 	spawnDetachedCleanup()
+	os.Exit(0)
 }
 
 // ExitMessageLoop menghentikan message loop
