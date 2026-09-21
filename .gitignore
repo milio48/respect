@@ -4,6 +4,8 @@
 *.dll
 !assets/rcedit.exe
 test-v132/
+dist/
+release/
 
 
 # Local research and tools

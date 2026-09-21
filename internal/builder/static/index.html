@@ -78,6 +78,33 @@
       color: var(--muted);
     }
 
+    .edition-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: 600;
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      color: var(--accent);
+      letter-spacing: 0.3px;
+    }
+
+    .edition-pill.lite {
+      background: rgba(63, 185, 80, 0.1);
+      border-color: rgba(63, 185, 80, 0.3);
+      color: #3fb950;
+    }
+
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
     .form-card {
       background: var(--card);
       border: 1px solid var(--card-border);
@@ -274,9 +301,13 @@
     <div class="brand">
       <div class="logo-badge">⚡ RESPECT</div>
       <div class="title-group">
-        <h1>Desktop EXE Builder</h1>
+        <h1 id="app-title">Desktop EXE Builder</h1>
         <p>Ubah Web / HTML menjadi binary Windows tanpa recompile</p>
       </div>
+    </div>
+    <div class="edition-pill" id="edition-pill">
+      <span class="pill-dot"></span>
+      <span id="edition-text">Loading...</span>
     </div>
   </header>
 
@@ -458,6 +489,34 @@
     box.className = type;
     box.innerHTML = html;
   }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const pill = document.getElementById('edition-pill');
+    const txt = document.getElementById('edition-text');
+    const title = document.getElementById('app-title');
+    if (window.mbQuery) {
+      pill.className = 'edition-pill';
+      txt.textContent = 'respect.exe (Modern v132)';
+      title.textContent = 'respect.exe — Desktop Builder';
+    } else if (window.ipc && window.ipc.invoke) {
+      pill.className = 'edition-pill lite';
+      txt.textContent = 'respect-lite.exe (Lite v49)';
+      title.textContent = 'respect-lite.exe — Desktop Builder';
+    } else {
+      // Polling fallback singkat untuk deteksi IPC jika belum ter-inject saat DOMReady
+      setTimeout(() => {
+        if (window.mbQuery) {
+          pill.className = 'edition-pill';
+          txt.textContent = 'respect.exe (Modern v132)';
+          title.textContent = 'respect.exe — Desktop Builder';
+        } else if (window.ipc && window.ipc.invoke) {
+          pill.className = 'edition-pill lite';
+          txt.textContent = 'respect-lite.exe (Lite v49)';
+          title.textContent = 'respect-lite.exe — Desktop Builder';
+        }
+      }, 200);
+    }
+  });
 </script>
 
 </body>

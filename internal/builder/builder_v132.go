@@ -1,3 +1,5 @@
+//go:build v132
+
 package builder
 
 import (
@@ -12,14 +14,16 @@ import (
 	"respect-app/assets"
 	"respect-app/internal/mb132"
 	"respect-app/internal/payload"
+	"respect-app/internal/version"
 )
 
 //go:embed static/index.html
 var indexHTML string
 
-// Run menjalankan antarmuka grafis (GUI) builder respect.exe menggunakan Miniblink 132.
+// Run menjalankan antarmuka grafis (GUI) builder respect.exe menggunakan Chromium 132.
 func Run() {
-	view, err := mb132.CreateWebWindow("respect.exe — Standalone EXE Builder", 720, 680)
+	title := fmt.Sprintf("%s — Standalone EXE Builder", version.BinaryName)
+	view, err := mb132.CreateWebWindow(title, 720, 680)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Gagal menginisialisasi jendela builder: %v\n", err)
 		return

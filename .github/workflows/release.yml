@@ -1,0 +1,122 @@
+name: Release Respect Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Nomor versi release (misal: 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Determine Version
+        id: get_version
+        shell: pwsh
+        run: |
+          $ver = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($ver)) {
+            if ($env:GITHUB_REF -match 'refs/tags/v?(.*)') {
+              $ver = $Matches[1]
+            } else {
+              $ver = "1.0.0"
+            }
+          }
+          Write-Host "Version: $ver"
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Build Respect Lite (v49) & Respect Modern (v132)
+        shell: pwsh
+        run: |
+          # 1. Bangun Respect Lite (v49 standalone)
+          $liteDir = "dist/respect-lite"
+          New-Item -ItemType Directory -Path $liteDir -Force | Out-Null
+          go build -ldflags="-s -w -H windowsgui" -o "$liteDir/respect-lite.exe" .
+          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-icon.ico")) {
+            .\assets\rcedit.exe "$liteDir/respect-lite.exe" --set-icon "assets/respect-icon.ico"
+          }
+
+          # 2. Bangun Respect Modern (v132 slim)
+          $modernDir = "dist/respect"
+          New-Item -ItemType Directory -Path $modernDir -Force | Out-Null
+          go build -tags v132 -ldflags="-s -w -H windowsgui" -o "$modernDir/respect.exe" .
+          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-icon.ico")) {
+            .\assets\rcedit.exe "$modernDir/respect.exe" --set-icon "assets/respect-icon.ico"
+          }
+
+      - name: Download & Bundle blink.dll (if available)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $modernDir = "dist/respect"
+          # Coba unduh blink.dll dari release asset sebelumnya (tag engine-v132 atau sejenisnya) jika ada
+          try {
+            gh release download engine-v132 -p "blink.dll" -D $modernDir 2>$null
+            Write-Host "blink.dll berhasil diunduh dari release asset engine-v132"
+          } catch {
+            Write-Host "blink.dll tidak ditemukan di release asset, mencari di repository lokal..."
+          }
+
+          # Buat README petunjuk untuk varian modern jika blink.dll belum dibundel
+          if (!(Test-Path "$modernDir/blink.dll")) {
+            @"
+Respect Modern (v132)
+=====================
+Aplikasi ini membutuhkan Chromium 132 Engine (blink.dll) berarsitektur 64-bit.
+Letakkan file 'blink.dll' di folder yang sama dengan 'respect.exe'.
+
+Jika Anda membutuhkan versi portabel tanpa DLL eksternal, gunakan 'respect-lite.exe'.
+"@ | Out-File -FilePath "$modernDir/README.txt" -Encoding utf8
+          }
+
+      - name: Package Release Archives
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.get_version.outputs.version }}"
+          $releaseDir = "release-pkg"
+          New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+
+          # Compress Respect Lite
+          Compress-Archive -Path "dist/respect-lite/*" -DestinationPath "$releaseDir/respect-lite-v$ver-windows.zip" -Force
+
+          # Compress Respect Modern
+          Compress-Archive -Path "dist/respect/*" -DestinationPath "$releaseDir/respect-v$ver-modern-win64.zip" -Force
+
+          Write-Host "Daftar paket rilis:"
+          Get-ChildItem $releaseDir | Select-Object Name, Length
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          name: "Respect Desktop v${{ steps.get_version.outputs.version }}"
+          tag_name: ${{ github.ref_name || format('v{0}', steps.get_version.outputs.version) }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-pkg/respect-lite-v${{ steps.get_version.outputs.version }}-windows.zip
+            release-pkg/respect-v${{ steps.get_version.outputs.version }}-modern-win64.zip
+            dist/respect-lite/respect-lite.exe

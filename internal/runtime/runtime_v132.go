@@ -1,3 +1,5 @@
+//go:build v132
+
 package runtime
 
 import (
@@ -11,7 +13,7 @@ import (
 	"respect-app/internal/payload"
 )
 
-// Run menampilkan jendela Miniblink 132 sesuai konfigurasi payload.
+// Run menampilkan jendela Chromium 132 sesuai konfigurasi payload.
 func Run(cfg *payload.Config) {
 	cfg.Defaults()
 

@@ -11,6 +11,7 @@ import (
 	"respect-app/internal/icon"
 	"respect-app/internal/payload"
 	"respect-app/internal/runtime"
+	"respect-app/internal/version"
 )
 
 func init() {
@@ -34,6 +35,8 @@ func main() {
 	}
 
 	// 1. Parsing CLI flags untuk mode build baris perintah
+	versionFlag := flag.Bool("version", false, "Tampilkan informasi versi aplikasi")
+	flag.BoolVar(versionFlag, "v", false, "Tampilkan informasi versi aplikasi (shorthand)")
 	buildFlag := flag.Bool("build", false, "Bangun file EXE baru dari konfigurasi")
 	mode := flag.String("mode", "url", "Mode tampilan: url | html | file")
 	source := flag.String("source", "", "Sumber konten: URL / kode HTML / path file lokal")
@@ -43,6 +46,11 @@ func main() {
 	height := flag.Int("height", 600, "Tinggi jendela aplikasi")
 	iconPath := flag.String("icon", "", "Path file icon .ico (opsional)")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println(version.String())
+		return
+	}
 
 	if *buildFlag {
 		if strings.TrimSpace(*source) == "" {
