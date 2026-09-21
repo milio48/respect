@@ -30,6 +30,14 @@ var (
 	procMbGetHostHWND          *syscall.Proc
 	procMbRunMessageLoop       *syscall.Proc
 	procMbExitMessageLoop      *syscall.Proc
+	procMbSetLanguage          *syscall.Proc
+	procMbSetUserAgent         *syscall.Proc
+	procMbSetCookieJarFullPath *syscall.Proc
+	procMbSetCookieJarPath     *syscall.Proc
+	procMbSetLocalStoragePath  *syscall.Proc
+	procMbOnCreateView         *syscall.Proc
+	procMbOnNavigation         *syscall.Proc
+
 
 	// Windows User32 untuk pengaturan icon jendela native
 	user32                = syscall.NewLazyDLL("user32.dll")
@@ -41,6 +49,10 @@ const (
 	WM_SETICON = 0x0080
 	ICON_SMALL = 0
 	ICON_BIG   = 1
+
+	// Modern Chrome User-Agent
+	DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+	DefaultLanguage  = "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 )
 
 // findDLL mencari path DLL Miniblink 132 (blink.dll atau mb132_x64.dll)
@@ -143,9 +155,40 @@ func Init() error {
 		if dllErr != nil {
 			return
 		}
+		procMbSetLanguage, dllErr = dllMod.FindProc("mbSetLanguage")
+		if dllErr != nil {
+			return
+		}
+		procMbSetUserAgent, dllErr = dllMod.FindProc("mbSetUserAgent")
+		if dllErr != nil {
+			return
+		}
+		procMbSetCookieJarFullPath, dllErr = dllMod.FindProc("mbSetCookieJarFullPath")
+		if dllErr != nil {
+			return
+		}
+		procMbSetCookieJarPath, _ = dllMod.FindProc("mbSetCookieJarPath")
+		procMbSetLocalStoragePath, dllErr = dllMod.FindProc("mbSetLocalStorageFullPath")
+		if dllErr != nil {
+			return
+		}
+		procMbOnCreateView, dllErr = dllMod.FindProc("mbOnCreateView")
+		if dllErr != nil {
+			return
+		}
+		procMbOnNavigation, dllErr = dllMod.FindProc("mbOnNavigation")
+		if dllErr != nil {
+			return
+		}
 
 		// Panggil mbInit dengan settings default NULL
 		procMbInit.Call(0)
+
+		// Bersihkan file cookies.dat lokal jika ada sisa eksekusi sebelumnya
+		self, err := os.Executable()
+		if err == nil {
+			_ = os.Remove(filepath.Join(filepath.Dir(self), "cookies.dat"))
+		}
 	})
 
 	return dllErr
@@ -156,11 +199,13 @@ type WebView struct {
 	Handle uintptr
 	hwnd   uintptr
 
-	onDestroyCb   uintptr
-	onDestroyUser func()
+	onDestroyCb    uintptr
+	onDestroyUser  func()
 
-	onQueryCb   uintptr
-	onQueryUser func(req string) string
+	onQueryCb      uintptr
+	onQueryUser    func(req string) string
+
+	onCreateViewCb uintptr
 }
 
 // CreateWebWindow membuat jendela webview popup baru
@@ -189,6 +234,29 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 		hwnd:   hwnd,
 	}
 
+	// 1. Set User Agent & Bahasa default (menghindari bahasa Cina & tampilan jadul)
+	wv.SetUserAgent(DefaultUserAgent)
+	wv.SetLanguage(DefaultLanguage)
+
+	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData/Temp agar folder aplikasi tetap bersih
+	wv.SetIsolatedStorage()
+
+	// 3. Pasang handler pembukaan jendela baru (target="_blank" / popup) agar tidak force close
+	wv.onCreateViewCb = syscall.NewCallback(func(h uintptr, param uintptr, navType int32, urlPtr *byte, feat uintptr) uintptr {
+		if urlPtr != nil {
+			slice := unsafe.Slice(urlPtr, 2048)
+			var n int
+			for n = 0; n < len(slice) && slice[n] != 0; n++ {
+			}
+			newURL := string(slice[:n])
+			if newURL != "" {
+				wv.LoadURL(newURL)
+			}
+		}
+		return 0
+	})
+	procMbOnCreateView.Call(wv.Handle, wv.onCreateViewCb, 0)
+
 	if title != "" {
 		wv.SetTitle(title)
 	}
@@ -200,6 +268,12 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 			wv.onDestroyUser()
 		}
 		ExitMessageLoop()
+
+		// Bersihkan file cookies.dat lokal jika tertulis di folder executable
+		self, err := os.Executable()
+		if err == nil {
+			_ = os.Remove(filepath.Join(filepath.Dir(self), "cookies.dat"))
+		}
 		return 0
 	})
 	procMbOnDestroy.Call(wv.Handle, wv.onDestroyCb, 0)
@@ -211,6 +285,46 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 func (v *WebView) SetTitle(title string) {
 	utf8Str := []byte(title + "\x00")
 	procMbSetWindowTitle.Call(v.Handle, uintptr(unsafe.Pointer(&utf8Str[0])))
+}
+
+// SetUserAgent mengatur string User-Agent
+func (v *WebView) SetUserAgent(ua string) {
+	if procMbSetUserAgent != nil {
+		utf8Str := []byte(ua + "\x00")
+		procMbSetUserAgent.Call(v.Handle, uintptr(unsafe.Pointer(&utf8Str[0])))
+	}
+}
+
+// SetLanguage mengatur locale dan bahasa accept HTTP
+func (v *WebView) SetLanguage(lang string) {
+	if procMbSetLanguage != nil {
+		utf8Str := []byte(lang + "\x00")
+		procMbSetLanguage.Call(v.Handle, uintptr(unsafe.Pointer(&utf8Str[0])))
+	}
+}
+
+// SetIsolatedStorage memindahkan penyimpanan Cookie dan LocalStorage ke LocalAppData
+// agar folder instalasi aplikasi tetap bersih tanpa file cookie/LocalStorage liar
+func (v *WebView) SetIsolatedStorage() {
+	appData := os.Getenv("LOCALAPPDATA")
+	if appData == "" {
+		appData = os.TempDir()
+	}
+	cacheDir := filepath.Join(appData, "respect", "cache")
+	_ = os.MkdirAll(cacheDir, 0755)
+
+	cookieFile, err1 := syscall.UTF16PtrFromString(filepath.Join(cacheDir, "cookies.dat"))
+	storageDir, err2 := syscall.UTF16PtrFromString(cacheDir)
+
+	if err1 == nil && procMbSetCookieJarFullPath != nil {
+		procMbSetCookieJarFullPath.Call(v.Handle, uintptr(unsafe.Pointer(cookieFile)))
+	}
+	if err2 == nil && procMbSetCookieJarPath != nil {
+		procMbSetCookieJarPath.Call(v.Handle, uintptr(unsafe.Pointer(storageDir)))
+	}
+	if err2 == nil && procMbSetLocalStoragePath != nil {
+		procMbSetLocalStoragePath.Call(v.Handle, uintptr(unsafe.Pointer(storageDir)))
+	}
 }
 
 // MoveToCenter memposisikan jendela di tengah layar
@@ -280,13 +394,10 @@ func (v *WebView) SetIcon(iconBytes []byte) error {
 		return nil
 	}
 
-	// Lewati header file .ico (biasanya gambar pertama mulai pada offset di header)
-	// Jika gagal parsing resource, fallback aman tanpa panic
 	if len(iconBytes) < 22 {
 		return nil
 	}
 
-	// Gunakan CreateIconFromResourceEx
 	hIcon, _, _ := procCreateIconFromRes.Call(
 		uintptr(unsafe.Pointer(&iconBytes[22])),
 		uintptr(len(iconBytes)-22),

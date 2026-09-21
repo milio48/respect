@@ -32,8 +32,9 @@
       padding: 24px;
       line-height: 1.5;
       font-size: 13.5px;
-      user-select: none;
+      user-select: text;
     }
+
 
     .container {
       max-width: 660px;
@@ -417,13 +418,14 @@
     try {
       let resStr = "";
       if (typeof window.mbQuery === 'function') {
-        // Komunikasi native Miniblink 132
+        // Komunikasi native Miniblink 132 (menerima customMsg dan response string)
         resStr = await new Promise((resolve) => {
-          window.mbQuery(1, JSON.stringify(cfg), function(response) {
-            resolve(response);
+          window.mbQuery(1, JSON.stringify(cfg), function(customMsg, response) {
+            resolve(response || customMsg);
           });
         });
       } else if (typeof ipc !== 'undefined' && ipc.invoke) {
+
         // Komunikasi Miniblink 49
         resStr = await ipc.invoke('build-app', JSON.stringify(cfg));
       } else {
