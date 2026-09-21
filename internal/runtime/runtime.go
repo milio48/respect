@@ -8,10 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"unsafe"
+
 	blink "github.com/epkgs/blink"
 	"respect-app/assets"
 	"respect-app/internal/payload"
 )
+
+// User-Agent modern untuk kompatibilitas web maksimal
+const defaultModernUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\x00"
 
 // Run menampilkan jendela Miniblink sesuai konfigurasi payload.
 func Run(cfg *payload.Config) {
@@ -20,12 +25,25 @@ func Run(cfg *payload.Config) {
 	app := blink.NewApp()
 	defer app.Exit()
 
+	// Injeksi boot script untuk menyetel bahasa navigator ke Indonesia/Inggris (menimpa default zh-CN)
+	app.AddBootScript(`
+try {
+	Object.defineProperty(navigator, 'language', { get: () => 'id-ID' });
+	Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'] });
+} catch (e) {}
+`)
+
 	view := app.CreateWebWindowPopup(blink.WithWebWindowSize(int32(cfg.Width), int32(cfg.Height)))
 	if len(assets.RespectIcon) > 0 {
 		view.Window.SetIconFromBytes(assets.RespectIcon)
 	}
 	view.Window.SetTitle(cfg.Title)
 	view.Window.MoveToCenter()
+
+	// Injeksi User-Agent modern ke webview Miniblink
+	uaBytes := []byte(defaultModernUA)
+	_, _, _ = app.CallFunc("wkeSetUserAgent", uintptr(view.GetWindowHandle()), uintptr(unsafe.Pointer(&uaBytes[0])))
+
 
 
 	switch cfg.Mode {

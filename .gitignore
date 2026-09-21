@@ -1,6 +1,8 @@
 # Generated binaries
 *.exe
+*.exe~
 !assets/rcedit.exe
+
 
 # Local research and tools
 _research/
