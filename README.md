@@ -10,27 +10,25 @@ Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 
 | Fitur | 🌟 **Respect Modern (`respect.exe`)** | 🪶 **Respect Lite (`respect-lite.exe`)** |
 |---|---|---|
-| **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | **File tunggal mandiri**, langsung jalan tanpa file lain |
-| **Bentuk Distribusi** | File `respect.exe` didampingi file `blink.dll` | **1 file `.exe` mandiri** (semua sudah ter-embed) |
-| **Ukuran File Biner** | **~3.3 MB** (`respect.exe`) + ~68.9 MB (`blink.dll`) | **~57 MB** (64-bit) / **~50 MB** (32-bit) |
-| **Ukuran Download (ZIP)** | **~28 MB** (arsip `.zip`) | **~25 MB** (arsip `.zip` atau langsung `.exe`) |
-| **Engine Browser** | Chromium 132 (Terbaru & Cepat) | Miniblink 49 (Sangat Ringan & Hemat RAM) |
+| **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | Ringan, hemat memori & kompatibilitas sistem lawas |
+| **Bentuk Distribusi** | **1 File `.exe` Mandiri** (Single Binary) | **1 File `.exe` Mandiri** (Single Binary) |
+| **Ukuran File Biner** | **~72 MB** *(seluruh engine terintegrasi)* | **~57 MB** *(seluruh engine terintegrasi)* |
+| **Ukuran Download (ZIP)** | **~28 MB** | **~25 MB** |
+| **Engine Browser** | Chromium 132 (Terbaru & Cepat) | Miniblink 49 (Ringan & Hemat RAM) |
 | **Dukungan Windows** | Windows 7, 8, 10, 11 (64-bit) | Windows 7, 8, 10, 11 (64-bit)* / XP s.d. 11 (32-bit)* |
 | **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), utilitas kantor, komputer lawas |
 
 > **💡 Panduan Cepat:**
-> - Jika ingin tampilan web terbaik dan modern: **Unduh Respect Modern** (`respect.exe`).
-> - Jika ingin file tunggal yang ringkas untuk dibawa di flashdisk atau komputer kantor/kasir: **Unduh Respect Lite** (`respect-lite.exe`).
-> - *\*Catatan Arsitektur:* Biner default `respect-lite.exe` adalah 64-bit. Tersedia pula build 32-bit (`x86`) untuk kompatibilitas penuh dengan Windows XP / 7 32-bit.
+> - Jika ingin tampilan web masa kini terbaik: **Gunakan `respect.exe`**.
+> - Jika ingin binary yang lebih hemat memori atau untuk komputer lama: **Gunakan `respect-lite.exe`**.
+> - Kedua edisi merupakan **single binary mandiri** (cukup 1 file `.exe`, langsung jalan tanpa perlu instalasi atau file tambahan).
 
 ---
 
 ## 🚀 Cara Menggunakan (Sangat Mudah!)
 
-1. **Unduh aplikasi** dari halaman [GitHub Releases](../../releases).
-2. **Buka aplikasi**:
-   - Untuk Respect Modern: Ekstrak zip, lalu klik dua kali **`respect.exe`**.
-   - Untuk Respect Lite: Cukup klik dua kali **`respect-lite.exe`**.
+1. **Unduh file executable** (`respect.exe` atau `respect-lite.exe`) dari halaman [GitHub Releases](../../releases).
+2. **Klik ganda file `.exe`** yang telah diunduh untuk membuka builder.
 3. **Isi formulir pembuatan**:
    - Masukkan alamat web (contoh: `https://aplikasisaya.com`) atau pilih file HTML lokal Anda.
    - Beri nama aplikasi Anda (contoh: `AplikasiSaya.exe`).
@@ -88,15 +86,17 @@ Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command 
 
 ### Cara Kompilasi (Build) Lokal
 
+> 💡 **Catatan Development:** Selama fase pengembangan (development) v132, engine Miniblink 132 dijalankan dalam mode slim dengan memuat `blink.dll` di samping binary untuk mempercepat proses kompilasi dan iterasi lokal.
+
 #### 1. Menggunakan Skrip PowerShell Otomatis
 ```powershell
 # Bangun kedua edisi sekaligus ke folder dist/
 .\scripts\build.ps1 -Target all
 
-# Bangun hanya Respect Modern (respect.exe + blink.dll)
+# Bangun hanya Respect Modern (respect.exe)
 .\scripts\build.ps1 -Target modern
 
-# Bangun hanya Respect Lite (respect-lite.exe single file)
+# Bangun hanya Respect Lite (respect-lite.exe)
 .\scripts\build.ps1 -Target lite
 ```
 
