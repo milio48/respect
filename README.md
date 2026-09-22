@@ -9,7 +9,20 @@
 
 ---
 
-## 🎯 Pilih Edisi yang Tepat untuk Anda
+## ⚡ Unduh Langsung (Siap Pakai, Cukup 1 File .EXE)
+
+Langsung unduh edisi yang sesuai kebutuhan Anda tanpa perlu membaca dokumentasi teknis:
+
+| <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-full.png" width="80" height="80" alt="Respect Modern"><br><b>Respect Modern (`respect.exe`)</b></a> | <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-lite.png" width="80" height="80" alt="Respect Lite"><br><b>Respect Lite (`respect-lite.exe`)</b></a> |
+| :---: | :---: |
+| 🌟 **Pilihan Terbaik & Paling Direkomendasikan**<br>Mendukung web modern, Tailwind CSS, animasi halus, dan visual kaya *(Chromium 132)*. | 🪶 **Paling Ringan & Hemat Memori RAM**<br>Sangat enteng, minim RAM, cocok untuk aplikasi kasir atau komputer lawas *(Miniblink 49)*. |
+| [⬇️ **Unduh Edisi Modern (64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows 7, 8, 10, 11)* | [⬇️ **Unduh Edisi Lite (32/64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows XP s.d. 11)* |
+
+> 💡 **Cara Pakai:** Cukup unduh salah satu file `.exe` di atas, klik ganda untuk membuka builder, masukkan link web Anda, dan klik **Build**. Selesai!
+
+---
+
+## 🎯 Perbandingan Detail Edisi
 
 Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 
