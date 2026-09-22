@@ -14,8 +14,9 @@ Write-Host "Target  : $Target" -ForegroundColor Yellow
 Write-Host "Output  : $OutDir" -ForegroundColor Yellow
 Write-Host ''
 
-$rcedit = Join-Path $PSScriptRoot '..\assets\rcedit.exe'
-$icon   = Join-Path $PSScriptRoot '..\assets\respect-icon.ico'
+$rcedit   = Join-Path $PSScriptRoot '..\assets\rcedit.exe'
+$iconLite = Join-Path $PSScriptRoot '..\assets\respect-lite.ico'
+$iconFull = Join-Path $PSScriptRoot '..\assets\respect-full.ico'
 
 # 1. Build Respect Lite (v49)
 if ($Target -eq 'all' -or $Target -eq 'lite') {
@@ -26,8 +27,16 @@ if ($Target -eq 'all' -or $Target -eq 'lite') {
     $liteExe = Join-Path $liteDir 'respect-lite.exe'
     go build -ldflags='-s -w -H windowsgui' -o $liteExe .
     
-    if ((Test-Path $rcedit) -and (Test-Path $icon)) {
-        & $rcedit $liteExe --set-icon $icon
+    if ((Test-Path $rcedit) -and (Test-Path $iconLite)) {
+        & $rcedit $liteExe `
+            --set-icon $iconLite `
+            --set-product-version "1.0.0" `
+            --set-file-version "1.0.0.0" `
+            --set-version-string "ProductName" "Respect Desktop Lite" `
+            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine)" `
+            --set-version-string "CompanyName" "milio48" `
+            --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
+            --set-version-string "OriginalFilename" "respect-lite.exe"
     }
 
     $liteBytes = (Get-Item $liteExe).Length
@@ -44,8 +53,16 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
     $modernExe = Join-Path $modernDir 'respect.exe'
     go build -tags v132 -ldflags='-s -w -H windowsgui' -o $modernExe .
 
-    if ((Test-Path $rcedit) -and (Test-Path $icon)) {
-        & $rcedit $modernExe --set-icon $icon
+    if ((Test-Path $rcedit) -and (Test-Path $iconFull)) {
+        & $rcedit $modernExe `
+            --set-icon $iconFull `
+            --set-product-version "1.0.0" `
+            --set-file-version "1.0.0.0" `
+            --set-version-string "ProductName" "Respect Desktop" `
+            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Modern Engine)" `
+            --set-version-string "CompanyName" "milio48" `
+            --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
+            --set-version-string "OriginalFilename" "respect.exe"
     }
 
     $dllSource = ''
@@ -55,9 +72,19 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
         $dllSource = '_research\miniblink132\mb132_x64.dll'
     }
 
+    $targetDll = Join-Path $modernDir 'blink.dll'
     if ($dllSource -ne '') {
-        Copy-Item -Path $dllSource -Destination (Join-Path $modernDir 'blink.dll') -Force
-        Write-Host "  -> blink.dll disalin dari $dllSource" -ForegroundColor DarkGray
+        if (-not (Test-Path $targetDll)) {
+            Copy-Item -Path $dllSource -Destination $targetDll -Force
+            Write-Host "  -> blink.dll disalin dari $dllSource" -ForegroundColor DarkGray
+        } else {
+            try {
+                Copy-Item -Path $dllSource -Destination $targetDll -Force -ErrorAction Stop
+                Write-Host "  -> blink.dll diperbarui dari $dllSource" -ForegroundColor DarkGray
+            } catch {
+                Write-Host "  -> blink.dll sudah ada (terkunci oleh proses aktif, dipertahankan)" -ForegroundColor DarkGray
+            }
+        }
     } else {
         Write-Warning 'blink.dll tidak ditemukan di test-v132 atau _research.'
     }

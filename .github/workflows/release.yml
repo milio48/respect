@@ -49,20 +49,40 @@ jobs:
       - name: Build Respect Lite (v49) & Respect Modern (v132)
         shell: pwsh
         run: |
+          $ver = "${{ steps.get_version.outputs.version }}"
+          $fileVer = "$ver.0"
+          if ($fileVer.Split('.').Count -lt 4) { $fileVer = "$ver.0.0" }
+
           # 1. Bangun Respect Lite (v49 standalone)
           $liteDir = "dist/respect-lite"
           New-Item -ItemType Directory -Path $liteDir -Force | Out-Null
           go build -ldflags="-s -w -H windowsgui" -o "$liteDir/respect-lite.exe" .
-          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-icon.ico")) {
-            .\assets\rcedit.exe "$liteDir/respect-lite.exe" --set-icon "assets/respect-icon.ico"
+          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-lite.ico")) {
+            .\assets\rcedit.exe "$liteDir/respect-lite.exe" `
+              --set-icon "assets/respect-lite.ico" `
+              --set-product-version "$ver" `
+              --set-file-version "$fileVer" `
+              --set-version-string "ProductName" "Respect Desktop Lite" `
+              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine)" `
+              --set-version-string "CompanyName" "milio48" `
+              --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
+              --set-version-string "OriginalFilename" "respect-lite.exe"
           }
 
           # 2. Bangun Respect Modern (v132 slim)
           $modernDir = "dist/respect"
           New-Item -ItemType Directory -Path $modernDir -Force | Out-Null
           go build -tags v132 -ldflags="-s -w -H windowsgui" -o "$modernDir/respect.exe" .
-          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-icon.ico")) {
-            .\assets\rcedit.exe "$modernDir/respect.exe" --set-icon "assets/respect-icon.ico"
+          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-full.ico")) {
+            .\assets\rcedit.exe "$modernDir/respect.exe" `
+              --set-icon "assets/respect-full.ico" `
+              --set-product-version "$ver" `
+              --set-file-version "$fileVer" `
+              --set-version-string "ProductName" "Respect Desktop" `
+              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Modern Engine)" `
+              --set-version-string "CompanyName" "milio48" `
+              --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
+              --set-version-string "OriginalFilename" "respect.exe"
           }
 
       - name: Download & Bundle blink.dll (if available)

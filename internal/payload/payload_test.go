@@ -91,4 +91,3 @@ func TestReadActualDemoExe(t *testing.T) {
 		t.Errorf("expected title 'Demo App', got '%s'", cfg.Title)
 	}
 }
-

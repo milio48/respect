@@ -15,9 +15,19 @@ import (
 )
 
 func init() {
-	// Hubungkan icon injector ke payload builder
+	// Hubungkan icon & metadata injector ke payload builder
 	payload.IconInjector = icon.InjectIcon
 	payload.DefaultIconInjector = icon.InjectDefaultIcon
+	payload.MetadataApplier = func(targetExe string, cfg payload.Config) error {
+		return icon.ApplyMetadata(targetExe, icon.Metadata{
+			ProductName:     cfg.Title,
+			FileDescription: cfg.Title + " Desktop Application",
+			CompanyName:     cfg.Company,
+			LegalCopyright:  cfg.Copyright,
+			Version:         cfg.AppVersion,
+			IconPath:        cfg.IconPath,
+		})
+	}
 }
 
 // attachConsole menghubungkan stdout/stderr ke terminal pemanggil di Windows (jika ada)
@@ -45,6 +55,9 @@ func main() {
 	width := flag.Int("width", 800, "Lebar jendela aplikasi")
 	height := flag.Int("height", 600, "Tinggi jendela aplikasi")
 	iconPath := flag.String("icon", "", "Path file icon .ico (opsional)")
+	appVer := flag.String("app-version", "1.0.0", "Nomor versi aplikasi (default: 1.0.0)")
+	company := flag.String("company", "", "Nama perusahaan atau pengembang aplikasi")
+	copyright := flag.String("copyright", "", "Hak cipta aplikasi (contoh: Copyright © 2026 Developer)")
 	flag.Parse()
 
 	if *versionFlag {
@@ -64,13 +77,16 @@ func main() {
 		}
 
 		cfg := payload.Config{
-			Mode:     *mode,
-			Source:   *source,
-			Title:    *title,
-			Width:    *width,
-			Height:   *height,
-			IconPath: *iconPath,
-			OutName:  outName,
+			Mode:       *mode,
+			Source:     *source,
+			Title:      *title,
+			Width:      *width,
+			Height:     *height,
+			IconPath:   *iconPath,
+			OutName:    outName,
+			AppVersion: *appVer,
+			Company:    *company,
+			Copyright:  *copyright,
 		}
 
 		if err := payload.BuildSelf(cfg); err != nil {

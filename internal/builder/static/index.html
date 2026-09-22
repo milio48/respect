@@ -244,6 +244,40 @@
       cursor: not-allowed;
     }
 
+    .advanced-toggle {
+      width: 100%;
+      background: transparent;
+      border: 1px dashed var(--card-border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      margin-top: 4px;
+      margin-bottom: 14px;
+      transition: all 0.15s ease;
+    }
+
+    .advanced-toggle:hover {
+      color: var(--text-bright);
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    .advanced-panel {
+      display: none;
+      background: rgba(13, 17, 23, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+      animation: fadeIn 0.2s ease-out;
+    }
+
     #status-box {
       margin-top: 16px;
       padding: 12px 16px;
@@ -361,6 +395,32 @@
       <div class="hint">Kosongkan jika ingin menggunakan icon bawaan respect.exe</div>
     </div>
 
+    <!-- Advanced Metadata & Options Toggle -->
+    <button type="button" class="advanced-toggle" id="advanced-toggle" onclick="toggleAdvanced()">
+      <span>⚙️ Metadata &amp; Opsi Lanjutan (Versi, Perusahaan &amp; Hak Cipta)</span>
+      <span id="advanced-arrow">▼</span>
+    </button>
+
+    <div id="advanced-panel" class="advanced-panel">
+      <div class="grid-2">
+        <div class="field">
+          <label for="app-version">Versi Aplikasi</label>
+          <input type="text" id="app-version" value="1.0.0" placeholder="1.0.0">
+          <div class="hint">Versi produk (contoh: 1.0.0)</div>
+        </div>
+        <div class="field">
+          <label for="company">Nama Perusahaan / Pengembang</label>
+          <input type="text" id="company" placeholder="Contoh: milio48 atau PT Solusi">
+          <div class="hint">Ditampilkan di tab Properties Windows</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="copyright">Hak Cipta (Legal Copyright)</label>
+        <input type="text" id="copyright" placeholder="Contoh: Copyright © 2026 Developer">
+      </div>
+    </div>
+
     <!-- Submit Button -->
     <button type="button" id="btn-build" class="btn-build" onclick="buildApp()">
       <span id="btn-icon">🚀</span>
@@ -374,6 +434,14 @@
 
 <script>
   let currentMode = 'url';
+
+  function toggleAdvanced() {
+    const panel = document.getElementById('advanced-panel');
+    const arrow = document.getElementById('advanced-arrow');
+    const isOpen = panel.style.display === 'block';
+    panel.style.display = isOpen ? 'none' : 'block';
+    arrow.textContent = isOpen ? '▼' : '▲';
+  }
 
   function setMode(mode) {
     currentMode = mode;
@@ -418,6 +486,9 @@
     const width = parseInt(document.getElementById('width').value, 10) || 800;
     const height = parseInt(document.getElementById('height').value, 10) || 600;
     const iconPath = document.getElementById('icon').value.trim();
+    const appVersion = document.getElementById('app-version').value.trim() || '1.0.0';
+    const company = document.getElementById('company').value.trim();
+    const copyright = document.getElementById('copyright').value.trim();
 
     const statusBox = document.getElementById('status-box');
     const btn = document.getElementById('btn-build');
@@ -439,7 +510,10 @@
       width: width,
       height: height,
       icon_path: iconPath || '',
-      out_name: outName
+      out_name: outName,
+      app_version: appVersion,
+      company: company,
+      copyright: copyright
     };
 
     btn.disabled = true;

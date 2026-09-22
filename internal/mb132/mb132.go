@@ -46,13 +46,22 @@ var (
 	procMbNetSetHTTPHeaderFieldUtf8      *syscall.Proc
 	procMbOnDidCreateScriptContext       *syscall.Proc
 	procMbRunJs                          *syscall.Proc
+	procMbEnableHighDPISupport           *syscall.Proc
+	procMbOnAlertBox                     *syscall.Proc
+	procMbOnConfirmBox                   *syscall.Proc
+	procMbOnPromptBox                    *syscall.Proc
+	procMbOnTitleChanged                 *syscall.Proc
+	procMbOnDownload                     *syscall.Proc
+	procMbPopupDownloadMgr               *syscall.Proc
 
-	// Windows User32 & Kernel32 untuk icon dan manajemen proses
+	// Windows User32 & Kernel32 untuk window, dialog, icon, dan proses
 	user32               = syscall.NewLazyDLL("user32.dll")
 	kernel32             = syscall.NewLazyDLL("kernel32.dll")
 	procSendMessageW     = user32.NewProc("SendMessageW")
 	procLoadImageW       = user32.NewProc("LoadImageW")
 	procLoadIconW        = user32.NewProc("LoadIconW")
+	procMessageBoxW      = user32.NewProc("MessageBoxW")
+	procSetWindowTextW   = user32.NewProc("SetWindowTextW")
 	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
 )
 
@@ -61,7 +70,7 @@ const (
 	ICON_SMALL = 0
 	ICON_BIG   = 1
 
-	IMAGE_ICON     = 1
+	IMAGE_ICON      = 1
 	LR_LOADFROMFILE = 0x0010
 
 	// Modern Chrome User-Agent
@@ -81,14 +90,14 @@ type EXCEPTION_RECORD struct {
 
 type CONTEXT_AMD64 struct {
 	P1Home, P2Home, P3Home, P4Home, P5Home, P6Home uint64
-	ContextFlags                                    uint32
-	MxCsr                                           uint32
-	SegCs, SegDs, SegEs, SegFs, SegGs, SegSs        uint16
-	EFlags                                          uint32
-	Dr0, Dr1, Dr2, Dr3, Dr6, Dr7                    uint64
-	Rax, Rcx, Rdx, Rbx, Rsp, Rbp, Rsi, Rdi          uint64
-	R8, R9, R10, R11, R12, R13, R14, R15            uint64
-	Rip                                             uint64
+	ContextFlags                                   uint32
+	MxCsr                                          uint32
+	SegCs, SegDs, SegEs, SegFs, SegGs, SegSs       uint16
+	EFlags                                         uint32
+	Dr0, Dr1, Dr2, Dr3, Dr6, Dr7                   uint64
+	Rax, Rcx, Rdx, Rbx, Rsp, Rbp, Rsi, Rdi         uint64
+	R8, R9, R10, R11, R12, R13, R14, R15           uint64
+	Rip                                            uint64
 }
 
 type EXCEPTION_POINTERS struct {
@@ -157,6 +166,22 @@ func spawnDetachedCleanup() {
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
 	}
 	_ = cmd.Start()
+}
+
+// ptrToUtf8 membaca string UTF-8 yang ditunjuk oleh pointer memori C
+func ptrToUtf8(ptr uintptr) string {
+	if ptr == 0 {
+		return ""
+	}
+	p := (*byte)(unsafe.Pointer(ptr))
+	slice := unsafe.Slice(p, 10*1024*1024)
+	var n int
+	for n = 0; n < len(slice); n++ {
+		if slice[n] == 0 {
+			break
+		}
+	}
+	return string(slice[:n])
 }
 
 // GetAppSandboxDir mengembalikan path folder penyimpanan sandbox unik untuk aplikasi ini
@@ -277,19 +302,6 @@ func Init() error {
 		if dllErr != nil {
 			return
 		}
-		procMbOnJsQuery, dllErr = dllMod.FindProc("mbOnJsQuery")
-		if dllErr != nil {
-			return
-		}
-		procMbResponseQuery, dllErr = dllMod.FindProc("mbResponseQuery")
-		if dllErr != nil {
-			return
-		}
-		procMbOnClose, _ = dllMod.FindProc("mbOnClose")
-		procMbOnDestroy, dllErr = dllMod.FindProc("mbOnDestroy")
-		if dllErr != nil {
-			return
-		}
 		procMbGetHostHWND, dllErr = dllMod.FindProc("mbGetHostHWND")
 		if dllErr != nil {
 			return
@@ -302,38 +314,36 @@ func Init() error {
 		if dllErr != nil {
 			return
 		}
-		procMbSetLanguage, dllErr = dllMod.FindProc("mbSetLanguage")
-		if dllErr != nil {
-			return
-		}
-		procMbSetUserAgent, dllErr = dllMod.FindProc("mbSetUserAgent")
-		if dllErr != nil {
-			return
-		}
-		procMbSetCookieJarFullPath, dllErr = dllMod.FindProc("mbSetCookieJarFullPath")
-		if dllErr != nil {
-			return
-		}
+
+		// Prosedur pendukung & callback (opsional agar tidak menggugurkan Init jika ada variasi build DLL)
+		procMbSetWindowTitle, _ = dllMod.FindProc("mbSetWindowTitle")
+		procMbMoveToCenter, _ = dllMod.FindProc("mbMoveToCenter")
+		procMbMoveWindow, _ = dllMod.FindProc("mbMoveWindow")
+		procMbOnJsQuery, _ = dllMod.FindProc("mbOnJsQuery")
+		procMbResponseQuery, _ = dllMod.FindProc("mbResponseQuery")
+		procMbOnClose, _ = dllMod.FindProc("mbOnClose")
+		procMbOnDestroy, _ = dllMod.FindProc("mbOnDestroy")
+		procMbSetLanguage, _ = dllMod.FindProc("mbSetLanguage")
+		procMbSetUserAgent, _ = dllMod.FindProc("mbSetUserAgent")
+		procMbSetCookieJarFullPath, _ = dllMod.FindProc("mbSetCookieJarFullPath")
 		procMbSetCookieJarPath, _ = dllMod.FindProc("mbSetCookieJarPath")
-		procMbSetLocalStoragePath, dllErr = dllMod.FindProc("mbSetLocalStorageFullPath")
-		if dllErr != nil {
-			return
-		}
-		procMbOnCreateView, dllErr = dllMod.FindProc("mbOnCreateView")
-		if dllErr != nil {
-			return
-		}
-		procMbOnNavigation, dllErr = dllMod.FindProc("mbOnNavigation")
-		if dllErr != nil {
-			return
-		}
+		procMbSetLocalStoragePath, _ = dllMod.FindProc("mbSetLocalStorageFullPath")
+		procMbOnCreateView, _ = dllMod.FindProc("mbOnCreateView")
+		procMbOnNavigation, _ = dllMod.FindProc("mbOnNavigation")
 		procMbSetNavigationToNewWindowEnable, _ = dllMod.FindProc("mbSetNavigationToNewWindowEnable")
 		procMbOnLoadUrlBegin, _ = dllMod.FindProc("mbOnLoadUrlBegin")
 		procMbNetSetHTTPHeaderFieldUtf8, _ = dllMod.FindProc("mbNetSetHTTPHeaderFieldUtf8")
 		procMbOnDidCreateScriptContext, _ = dllMod.FindProc("mbOnDidCreateScriptContext")
 		procMbRunJs, _ = dllMod.FindProc("mbRunJs")
+		procMbEnableHighDPISupport, _ = dllMod.FindProc("mbEnableHighDPISupport")
+		procMbOnAlertBox, _ = dllMod.FindProc("mbOnAlertBox")
+		procMbOnConfirmBox, _ = dllMod.FindProc("mbOnConfirmBox")
+		procMbOnPromptBox, _ = dllMod.FindProc("mbOnPromptBox")
+		procMbOnTitleChanged, _ = dllMod.FindProc("mbOnTitleChanged")
+		procMbOnDownload, _ = dllMod.FindProc("mbOnDownload")
+		procMbPopupDownloadMgr, _ = dllMod.FindProc("mbPopupDownloadMgr")
 
-		// Panggil mbInit dengan settings default NULL
+		// Panggil mbInit terlebih dahulu agar Chromium AtExitManager terinisialisasi
 		procMbInit.Call(0)
 	})
 
@@ -344,6 +354,7 @@ func Init() error {
 type WebView struct {
 	Handle uintptr
 	hwnd   uintptr
+	title  string
 
 	onCloseCb     uintptr
 	onDestroyCb   uintptr
@@ -354,6 +365,13 @@ type WebView struct {
 
 	onLoadBeginCb uintptr
 	onScriptCtxCb uintptr
+
+	onAlertBoxCb     uintptr
+	onConfirmBoxCb   uintptr
+	onPromptBoxCb    uintptr
+	onTitleChangedCb uintptr
+	onCreateViewCb   uintptr
+	onDownloadCb     uintptr
 }
 
 // CreateWebWindow membuat jendela webview popup baru
@@ -380,6 +398,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 	wv := &WebView{
 		Handle: handle,
 		hwnd:   hwnd,
+		title:  title,
 	}
 
 	// 1. Set User Agent & Bahasa default
@@ -389,12 +408,103 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData sandbox unik per nama aplikasi
 	wv.SetIsolatedStorage()
 
-	// 3. Matikan pembuatan popup jendela baru agar link target="_blank" otomatis navigasi di jendela aktif secara native
-	if procMbSetNavigationToNewWindowEnable != nil {
-		procMbSetNavigationToNewWindowEnable.Call(wv.Handle, 0)
+	// 3. Tangani pembuatan popup/tab baru (target="_blank" dan window.open)
+	// Alihkan navigasi langsung ke jendela aktif agar alur OAuth/popup login berjalan mulus tanpa silent drop
+	if procMbOnCreateView != nil {
+		wv.onCreateViewCb = syscall.NewCallback(func(h, param, navType, urlPtr, winFeatures uintptr) uintptr {
+			var targetURL string
+			if urlPtr != 0 {
+				targetURL = ptrToUtf8(urlPtr)
+			}
+			if targetURL != "" && targetURL != "about:blank" {
+				wv.LoadURL(targetURL)
+			}
+			return 0
+		})
+		procMbOnCreateView.Call(wv.Handle, wv.onCreateViewCb, 0)
 	}
 
-	// 4. Injeksi HTTP Header (Accept-Language dan User-Agent) ke setiap request jaringan
+	// 4. Handler dialog interaktif JavaScript (Alert, Confirm, Prompt)
+	if procMbOnAlertBox != nil {
+		wv.onAlertBoxCb = syscall.NewCallback(func(h, param, msgPtr uintptr) uintptr {
+			var msg string
+			if msgPtr != 0 {
+				msg = ptrToUtf8(msgPtr)
+			}
+			msgW, _ := syscall.UTF16PtrFromString(msg)
+			t := wv.title
+			if t == "" {
+				t = "Alert"
+			}
+			titleW, _ := syscall.UTF16PtrFromString(t)
+			procMessageBoxW.Call(wv.hwnd, uintptr(unsafe.Pointer(msgW)), uintptr(unsafe.Pointer(titleW)), 0x40) // MB_OK | MB_ICONINFORMATION
+			return 0
+		})
+		procMbOnAlertBox.Call(wv.Handle, wv.onAlertBoxCb, 0)
+	}
+
+	if procMbOnConfirmBox != nil {
+		wv.onConfirmBoxCb = syscall.NewCallback(func(h, param, msgPtr uintptr) uintptr {
+			var msg string
+			if msgPtr != 0 {
+				msg = ptrToUtf8(msgPtr)
+			}
+			msgW, _ := syscall.UTF16PtrFromString(msg)
+			t := wv.title
+			if t == "" {
+				t = "Confirm"
+			}
+			titleW, _ := syscall.UTF16PtrFromString(t)
+			ret, _, _ := procMessageBoxW.Call(wv.hwnd, uintptr(unsafe.Pointer(msgW)), uintptr(unsafe.Pointer(titleW)), 0x01|0x20) // MB_OKCANCEL | MB_ICONQUESTION
+			if ret == 1 {                                                                                                         // IDOK
+				return 1
+			}
+			return 0
+		})
+		procMbOnConfirmBox.Call(wv.Handle, wv.onConfirmBoxCb, 0)
+	}
+
+	if procMbOnPromptBox != nil {
+		wv.onPromptBoxCb = syscall.NewCallback(func(h, param, msgPtr, defPtr, resPtr uintptr) uintptr {
+			if resPtr != 0 {
+				*(*int32)(unsafe.Pointer(resPtr)) = 0 // batalkan prompt dengan aman, kembalikan null ke JS tanpa hang
+			}
+			return 0
+		})
+		procMbOnPromptBox.Call(wv.Handle, wv.onPromptBoxCb, 0)
+	}
+
+	// 5. Handler Title Changed: perbarui judul window native saat <title> halaman web berubah
+	if procMbOnTitleChanged != nil {
+		wv.onTitleChangedCb = syscall.NewCallback(func(h, param, titlePtr uintptr) uintptr {
+			if titlePtr != 0 {
+				newTitle := ptrToUtf8(titlePtr)
+				if newTitle != "" {
+					wv.title = newTitle
+					tW, err := syscall.UTF16PtrFromString(newTitle)
+					if err == nil && wv.hwnd != 0 {
+						procSetWindowTextW.Call(wv.hwnd, uintptr(unsafe.Pointer(tW)))
+					}
+				}
+			}
+			return 0
+		})
+		procMbOnTitleChanged.Call(wv.Handle, wv.onTitleChangedCb, 0)
+	}
+
+	// 6. Handler Download: buka dialog unduhan Save As standar Windows secara otomatis
+	if procMbOnDownload != nil {
+		wv.onDownloadCb = syscall.NewCallback(func(h, param, frameId, urlPtr, downloadJob uintptr) uintptr {
+			if procMbPopupDownloadMgr != nil {
+				r, _, _ := procMbPopupDownloadMgr.Call(h, urlPtr, downloadJob)
+				return r
+			}
+			return 0
+		})
+		procMbOnDownload.Call(wv.Handle, wv.onDownloadCb, 0)
+	}
+
+	// 7. Injeksi HTTP Header (Accept-Language dan User-Agent) ke setiap request jaringan
 	// Menjamin Google dan website lain tidak pernah mendeteksi bahasa Cina
 	if procMbOnLoadUrlBegin != nil && procMbNetSetHTTPHeaderFieldUtf8 != nil {
 		langKey := []byte("Accept-Language\x00")
@@ -410,7 +520,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 		procMbOnLoadUrlBegin.Call(wv.Handle, wv.onLoadBeginCb, 0)
 	}
 
-	// 5. Injeksi skrip context V8: override navigator.language dan terapkan akselerasi mouse wheel yang natural
+	// 8. Injeksi skrip context V8: override navigator.language dan terapkan akselerasi mouse wheel yang natural
 	if procMbOnDidCreateScriptContext != nil && procMbRunJs != nil {
 		preloadScript := []byte(`
 try {
@@ -458,7 +568,7 @@ try {
 	}
 	wv.MoveToCenter()
 
-	// 6. Pasang handler OnClose agar saat tombol X titlebar diklik,
+	// 9. Pasang handler OnClose agar saat tombol X titlebar diklik,
 	// message loop segera dihentikan sehingga proses langsung keluar dari Task Manager
 	if procMbOnClose != nil {
 		wv.onCloseCb = syscall.NewCallback(func(h, param, unuse uintptr) uintptr {
@@ -486,8 +596,17 @@ try {
 
 // SetTitle mengatur judul jendela
 func (v *WebView) SetTitle(title string) {
-	utf8Str := []byte(title + "\x00")
-	procMbSetWindowTitle.Call(v.Handle, uintptr(unsafe.Pointer(&utf8Str[0])))
+	v.title = title
+	if procMbSetWindowTitle != nil {
+		utf8Str := []byte(title + "\x00")
+		procMbSetWindowTitle.Call(v.Handle, uintptr(unsafe.Pointer(&utf8Str[0])))
+	}
+	if v.hwnd != 0 {
+		tW, err := syscall.UTF16PtrFromString(title)
+		if err == nil {
+			procSetWindowTextW.Call(v.hwnd, uintptr(unsafe.Pointer(tW)))
+		}
+	}
 }
 
 // SetUserAgent mengatur string User-Agent
@@ -565,17 +684,7 @@ func (v *WebView) HandleQuery(handler func(req string) string) {
 	v.onQueryUser = handler
 
 	v.onQueryCb = syscall.NewCallback(func(handle uintptr, param uintptr, es uintptr, queryId int64, customMsg int32, reqPtr *byte) uintptr {
-		var reqStr string
-		if reqPtr != nil {
-			slice := unsafe.Slice(reqPtr, 10*1024*1024)
-			var n int
-			for n = 0; n < len(slice); n++ {
-				if slice[n] == 0 {
-					break
-				}
-			}
-			reqStr = string(slice[:n])
-		}
+		reqStr := ptrToUtf8(uintptr(unsafe.Pointer(reqPtr)))
 
 		var respStr string
 		if v.onQueryUser != nil {

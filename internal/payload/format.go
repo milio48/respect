@@ -10,13 +10,16 @@ const (
 
 // Config adalah metadata yang di-append ke EXE.
 type Config struct {
-	Mode     string `json:"mode"`               // "url" | "html" | "file"
-	Source   string `json:"source"`             // URL / HTML string / path file
-	Title    string `json:"title,omitempty"`
-	Width    int    `json:"width,omitempty"`    // default 800
-	Height   int    `json:"height,omitempty"`   // default 600
-	IconPath string `json:"icon_path,omitempty"`
-	OutName  string `json:"out_name,omitempty"`
+	Mode       string `json:"mode"`   // "url" | "html" | "file"
+	Source     string `json:"source"` // URL / HTML string / path file
+	Title      string `json:"title,omitempty"`
+	Width      int    `json:"width,omitempty"`  // default 800
+	Height     int    `json:"height,omitempty"` // default 600
+	IconPath   string `json:"icon_path,omitempty"`
+	OutName    string `json:"out_name,omitempty"`
+	AppVersion string `json:"app_version,omitempty"` // e.g. "1.0.0"
+	Company    string `json:"company,omitempty"`     // e.g. "PT Solusi Digital"
+	Copyright  string `json:"copyright,omitempty"`   // e.g. "Copyright © 2026 PT Solusi Digital"
 }
 
 // Defaults mengisi nilai default kalau kosong.
@@ -29,5 +32,11 @@ func (c *Config) Defaults() {
 	}
 	if c.Title == "" {
 		c.Title = "respect.exe"
+	}
+	if c.AppVersion == "" {
+		c.AppVersion = "1.0.0"
+	}
+	if c.Copyright == "" && c.Title != "" && c.Title != "respect.exe" {
+		c.Copyright = "Copyright © 2026 " + c.Title
 	}
 }

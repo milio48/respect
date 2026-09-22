@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 )
 
+// MetadataApplier adalah fungsi untuk menginjeksi icon dan metadata PE ke base EXE.
+var MetadataApplier func(targetExe string, cfg Config) error
+
 // IconInjector adalah fungsi opsional untuk menginjeksi icon ke base EXE sebelum trailer ditempel.
 var IconInjector func(targetExe, iconPath string) error
 
@@ -61,14 +64,20 @@ func BuildSelf(cfg Config) error {
 		return err
 	}
 
-	// Injeksi icon jika ada sebelum trailer ditempel
-	if cfg.IconPath != "" && IconInjector != nil {
-		if err := IconInjector(cfg.OutName, cfg.IconPath); err != nil {
+	// Injeksi metadata PE dan icon sebelum trailer ditempel
+	if MetadataApplier != nil {
+		if err := MetadataApplier(cfg.OutName, cfg); err != nil {
+			// Jika metadata applier gagal, log dan lanjutkan atau return error
 			return err
 		}
-	} else if DefaultIconInjector != nil {
-		// Jika tidak ada icon kustom, suntikkan icon resmi Respect secara otomatis
-		_ = DefaultIconInjector(cfg.OutName)
+	} else {
+		if cfg.IconPath != "" && IconInjector != nil {
+			if err := IconInjector(cfg.OutName, cfg.IconPath); err != nil {
+				return err
+			}
+		} else if DefaultIconInjector != nil {
+			_ = DefaultIconInjector(cfg.OutName)
+		}
 	}
 
 	// Buka file dalam mode append untuk menempelkan trailer payload

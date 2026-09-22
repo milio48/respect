@@ -1,5 +1,10 @@
 # ⚡ Respect Desktop
 
+[![GitHub Release](https://img.shields.io/github/v/release/milio48/respect?color=blue&logo=github)](https://github.com/milio48/respect/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://github.com/milio48/respect)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev)
+
 **Respect Desktop** adalah aplikasi Windows praktis untuk mengubah situs website, web app, atau file HTML menjadi aplikasi desktop (`.exe`) mandiri siap pakai — **hanya dengan beberapa klik, tanpa perlu install server, Node.js, atau coding tambahan!**
 
 ---
@@ -13,8 +18,7 @@ Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 | **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | Ringan, hemat memori & kompatibilitas sistem lawas |
 | **Bentuk Distribusi** | **1 File `.exe` Mandiri** (Single Binary) | **1 File `.exe` Mandiri** (Single Binary) |
 | **Ukuran File Biner** | **~72 MB** *(seluruh engine terintegrasi)* | **~57 MB** *(seluruh engine terintegrasi)* |
-| **Ukuran Download (ZIP)** | **~28 MB** | **~25 MB** |
-| **Engine Browser** | Chromium 132 (Terbaru & Cepat) | Miniblink 49 (Ringan & Hemat RAM) |
+| **Engine Browser** | Chromium 132 (Lebih baru & Cepat) | Miniblink 49 (Ringan & Hemat RAM) |
 | **Dukungan Windows** | Windows 7, 8, 10, 11 (64-bit) | Windows 7, 8, 10, 11 (64-bit)* / XP s.d. 11 (32-bit)* |
 | **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), utilitas kantor, komputer lawas |
 
@@ -23,11 +27,31 @@ Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 > - Jika ingin binary yang lebih hemat memori atau untuk komputer lama: **Gunakan `respect-lite.exe`**.
 > - Kedua edisi merupakan **single binary mandiri** (cukup 1 file `.exe`, langsung jalan tanpa perlu instalasi atau file tambahan).
 
+<details>
+<summary>📊 <b>Lihat Hasil Uji Kapabilitas & Komparasi Fitur (Hasil Riset 88 Standar Web)</b></summary>
+
+Berdasarkan pengujian komparasi terhadap 88 fitur standar web modern (JavaScript, CSS, HTML5, dan PWA):
+
+| Kategori Pengujian | 🪶 Respect Lite (v49) | 🌟 Respect Modern (v132) | Catatan Penting |
+|---|---|---|---|
+| **JavaScript** | **19/24** (79%) | **24/24** (100%) | Modern lulus penuh standar ES2020+ (Optional Chaining `?.`, Nullish Coalescing `??`, ES Modules, WeakRef). |
+| **CSS Modern** | **6/22** (27%) | **22/22** (100%) | **Perbedaan Terbesar:** Lite tidak mendukung CSS Grid, CSS Variables (`--var`), `backdrop-filter`, `gap`, `aspect-ratio`, `:has()`. Modern mendukung penuh framework seperti Tailwind CSS. |
+| **HTML5 Core** | **18/32** (56%) | **21/32** (66%) | Keduanya mendukung Canvas, Web Audio, SVG, Web Workers, dan LocalStorage. |
+| **PWA & OS APIs** | **1/10** (10%) | **3/10** (30%) | Keterbatasan arsitektur embedded webview desktop: API tingkat OS seperti Cache API, Background Sync, dan Push Notifications tidak diekspos secara native. |
+| **TOTAL SKOR** | **44 / 88 (50.0%)** | **70 / 88 (79.5%)** | **Modern unggul mutlak pada rendering tampilan visual & kompatibilitas library web.** |
+
+> [!TIP]
+> **Rekomendasi Pemilihan:**
+> - **Pilih `respect.exe` (v132):** Wajib jika situs/aplikasi web Anda memakai framework frontend modern (React, Vue, Tailwind CSS, Svelte), grafik interaktif, atau animasi CSS modern.
+> - **Pilih `respect-lite.exe` (v49):** Sangat ideal untuk web app sederhana, aplikasi kasir (POS), utilitas internal, atau komputer dengan RAM terbatas dan Windows lawas (Windows 7/8).
+
+</details>
+
 ---
 
 ## 🚀 Cara Menggunakan (Sangat Mudah!)
 
-1. **Unduh file executable** (`respect.exe` atau `respect-lite.exe`) dari halaman [GitHub Releases](../../releases).
+1. **Unduh file executable** (`respect.exe` atau `respect-lite.exe`) dari halaman [GitHub Releases](https://github.com/milio48/respect/releases).
 2. **Klik ganda file `.exe`** yang telah diunduh untuk membuka builder.
 3. **Isi formulir pembuatan**:
    - Masukkan alamat web (contoh: `https://aplikasisaya.com`) atau pilih file HTML lokal Anda.
@@ -55,8 +79,9 @@ Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command 
 # Buat aplikasi dari file HTML lokal dengan ukuran jendela tertentu
 .\respect.exe --build --source "C:\proyek\index.html" --mode file --width 1280 --height 800 --out "Dashboard.exe"
 
-# Buat aplikasi dengan icon kustom (.ico)
-.\respect.exe --build --source "https://my-app.com" --icon "icon.ico" --out "MyApp.exe"
+# Buat aplikasi lengkap dengan icon, versi, dan metadata pengembang/perusahaan
+.\respect.exe --build --source "https://my-app.com" --icon "icon.ico" --out "MyApp.exe" `
+  --app-version "1.2.0" --company "PT Solusi Digital" --copyright "Copyright © 2026"
 ```
 
 ### Parameter CLI
@@ -66,6 +91,9 @@ Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command 
 - `--title` : Judul jendela aplikasi
 - `--width` / `--height` : Ukuran jendela awal aplikasi
 - `--icon` : Path file icon `.ico` (opsional)
+- `--app-version` : Nomor versi aplikasi (default: `1.0.0`)
+- `--company` : Nama perusahaan atau pengembang (opsional)
+- `--copyright` : Teks hak cipta / copyright (opsional)
 - `--version` : Cek versi engine dan edisi yang aktif
 
 </details>
@@ -81,10 +109,17 @@ Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command 
 - Sistem Operasi: **Windows 10/11 (64-bit)**
 - **Go 1.25+**
 - PowerShell 5.1+
+- Git: `git clone https://github.com/milio48/respect.git`
 
 ---
 
 ### Cara Kompilasi (Build) Lokal
+
+```powershell
+# Clone repository
+git clone https://github.com/milio48/respect.git
+cd respect
+```
 
 > 💡 **Catatan Development:** Selama fase pengembangan (development) v132, engine Miniblink 132 dijalankan dalam mode slim dengan memuat `blink.dll` di samping binary untuk mempercepat proses kompilasi dan iterasi lokal.
 
@@ -116,7 +151,7 @@ go build -ldflags="-s -w -H windowsgui" -o respect-lite.exe .
 ```
 respect/
 ├── .github/workflows/   # CI/CD GitHub Actions untuk rilis Windows otomatis
-├── assets/              # Icon resmi (.ico) dan alat injeksi binary (rcedit.exe)
+├── assets/              # Icon resmi (respect-full.ico & respect-lite.ico) serta rcedit.exe
 ├── internal/
 │   ├── builder/         # UI Builder GUI (builder_v132.go & builder_v49.go)
 │   │   └── static/      # Frontend Builder (HTML/CSS/JS mandiri, dual-IPC)
@@ -143,4 +178,4 @@ Workflow rilis tersedia di `.github/workflows/release.yml`. Ketika tag versi dib
 ---
 
 ## 📄 Lisensi
-Didistribusikan untuk mempermudah distribusi aplikasi web berbasis desktop di platform Windows.
+Didistribusikan di bawah lisensi MIT. Lihat file [LICENSE](LICENSE) untuk informasi lebih lanjut.
