@@ -3,6 +3,7 @@
 *.exe~
 *.dll
 !assets/rcedit.exe
+!assets/blink.dll
 test-v132/
 dist/
 release/

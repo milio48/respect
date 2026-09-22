@@ -101,31 +101,15 @@ jobs:
               --set-version-string "OriginalFilename" "respect.exe"
           }
 
-      - name: Download & Bundle blink.dll (if available)
+      - name: Bundle blink.dll
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $modernDir = "dist/respect"
-          # Coba unduh blink.dll dari release asset sebelumnya (tag engine-v132 atau sejenisnya) jika ada
-          try {
-            gh release download engine-v132 -p "blink.dll" -D $modernDir 2>$null
-            Write-Host "blink.dll berhasil diunduh dari release asset engine-v132"
-          } catch {
-            Write-Host "blink.dll tidak ditemukan di release asset, mencari di repository lokal..."
-          }
-
-          # Buat README petunjuk untuk varian modern jika blink.dll belum dibundel
-          if (!(Test-Path "$modernDir/blink.dll")) {
-            $msg = @(
-              "Respect Modern (v132)",
-              "=====================",
-              "Aplikasi ini membutuhkan Chromium 132 Engine (blink.dll) berarsitektur 64-bit.",
-              "Letakkan file 'blink.dll' di folder yang sama dengan 'respect.exe'.",
-              "",
-              "Jika Anda membutuhkan versi portabel tanpa DLL eksternal, gunakan 'respect-lite.exe'."
-            ) -join "`r`n"
-            Set-Content -Path "$modernDir/README.txt" -Value $msg -Encoding UTF8
+          if (Test-Path "assets/blink.dll") {
+            Copy-Item "assets/blink.dll" -Destination "$modernDir/blink.dll" -Force
+            Write-Host "blink.dll berhasil dibundel ke $modernDir"
+          } else {
+            Write-Host "assets/blink.dll tidak ditemukan, melewati bundel DLL."
           }
 
       - name: Package Release Archives
