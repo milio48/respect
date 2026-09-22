@@ -2,8 +2,8 @@ package version
 
 import "fmt"
 
-const (
-	// AppVersion adalah versi rilis Respect (Semantic Versioning)
+var (
+	// AppVersion adalah versi rilis Respect (dapat di-override via go -ldflags "-X ...")
 	AppVersion = "1.0.0"
 )
 

@@ -53,26 +53,42 @@ jobs:
           $fileVer = "$ver.0"
           if ($fileVer.Split('.').Count -lt 4) { $fileVer = "$ver.0.0" }
 
-          # 1. Bangun Respect Lite (v49 standalone)
+          # 1. Bangun Respect Lite (v49 standalone 64-bit)
           $liteDir = "dist/respect-lite"
           New-Item -ItemType Directory -Path $liteDir -Force | Out-Null
-          go build -ldflags="-s -w -H windowsgui" -o "$liteDir/respect-lite.exe" .
+          go build -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=$ver" -o "$liteDir/respect-lite.exe" .
           if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-lite.ico")) {
             .\assets\rcedit.exe "$liteDir/respect-lite.exe" `
               --set-icon "assets/respect-lite.ico" `
               --set-product-version "$ver" `
               --set-file-version "$fileVer" `
               --set-version-string "ProductName" "Respect Desktop Lite" `
-              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine)" `
+              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 64-bit)" `
               --set-version-string "CompanyName" "milio48" `
               --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
               --set-version-string "OriginalFilename" "respect-lite.exe"
           }
 
+          # 1b. Bangun Respect Lite x86 (v49 standalone 32-bit untuk Windows lawas)
+          $env:GOARCH = "386"
+          go build -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=$ver" -o "$liteDir/respect-lite-x86.exe" .
+          if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-lite.ico")) {
+            .\assets\rcedit.exe "$liteDir/respect-lite-x86.exe" `
+              --set-icon "assets/respect-lite.ico" `
+              --set-product-version "$ver" `
+              --set-file-version "$fileVer" `
+              --set-version-string "ProductName" "Respect Desktop Lite (32-bit)" `
+              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 32-bit)" `
+              --set-version-string "CompanyName" "milio48" `
+              --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
+              --set-version-string "OriginalFilename" "respect-lite-x86.exe"
+          }
+          $env:GOARCH = "amd64"
+
           # 2. Bangun Respect Modern (v132 slim)
           $modernDir = "dist/respect"
           New-Item -ItemType Directory -Path $modernDir -Force | Out-Null
-          go build -tags v132 -ldflags="-s -w -H windowsgui" -o "$modernDir/respect.exe" .
+          go build -tags v132 -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=$ver" -o "$modernDir/respect.exe" .
           if (Test-Path "assets/rcedit.exe" -and (Test-Path "assets/respect-full.ico")) {
             .\assets\rcedit.exe "$modernDir/respect.exe" `
               --set-icon "assets/respect-full.ico" `
@@ -140,3 +156,4 @@ Jika Anda membutuhkan versi portabel tanpa DLL eksternal, gunakan 'respect-lite.
             release-pkg/respect-lite-v${{ steps.get_version.outputs.version }}-windows.zip
             release-pkg/respect-v${{ steps.get_version.outputs.version }}-modern-win64.zip
             dist/respect-lite/respect-lite.exe
+            dist/respect-lite/respect-lite-x86.exe
