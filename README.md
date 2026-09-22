@@ -67,9 +67,9 @@ Berdasarkan pengujian komparasi terhadap 88 fitur standar web modern (JavaScript
 1. **Unduh file executable** (`respect.exe` atau `respect-lite.exe`) dari halaman [GitHub Releases](https://github.com/milio48/respect/releases).
 2. **Klik ganda file `.exe`** yang telah diunduh untuk membuka builder.
 3. **Isi formulir pembuatan**:
-   - Masukkan alamat web (contoh: `https://aplikasisaya.com`) atau pilih file HTML lokal Anda.
+   - Pilih mode sumber: **URL Website**, **HTML Inline** (tempel kode HTML langsung), atau **File HTML Lokal** (tuliskan path file). Contoh URL: `https://aplikasisaya.com`.
    - Beri nama aplikasi Anda (contoh: `AplikasiSaya.exe`).
-   - *(Opsional)* Pilih gambar icon `.ico` Anda sendiri.
+   - *(Opsional)* Tuliskan path file icon `.ico` Anda, misalnya `C:\icons\app.ico`.
 4. Klik tombol hijau **Build Standalone EXE**.
 5. **Selesai!** File `.exe` buatan Anda langsung jadi di folder yang sama dan siap digunakan atau dibagikan ke siapa saja.
 
@@ -99,7 +99,8 @@ Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command 
 
 ### Parameter CLI
 - `--build` : Mengaktifkan pembuatan file executable dari terminal
-- `--source` : URL website atau path file HTML
+- `--source` : URL website, kode HTML inline, atau path file HTML
+- `--mode` : Mode sumber konten — `url` (default), `html` (kode HTML inline), atau `file` (path file HTML lokal)
 - `--out` : Nama file output (default: `demo.exe`)
 - `--title` : Judul jendela aplikasi
 - `--width` / `--height` : Ukuran jendela awal aplikasi
@@ -107,7 +108,7 @@ Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command 
 - `--app-version` : Nomor versi aplikasi (default: `1.0.0`)
 - `--company` : Nama perusahaan atau pengembang (opsional)
 - `--copyright` : Teks hak cipta / copyright (opsional)
-- `--version` : Cek versi engine dan edisi yang aktif
+- `--version` atau `-v` : Cek versi engine dan edisi yang aktif
 
 </details>
 
@@ -134,7 +135,7 @@ git clone https://github.com/milio48/respect.git
 cd respect
 ```
 
-> 💡 **Catatan Development:** Selama fase pengembangan (development) v132, engine Miniblink 132 dijalankan dalam mode slim dengan memuat `blink.dll` di samping binary untuk mempercepat proses kompilasi dan iterasi lokal.
+> 💡 **Catatan Development:** Selama fase pengembangan (development) v132, engine Miniblink 132 dijalankan dalam mode slim dengan memuat `blink.dll` di samping binary untuk mempercepat proses kompilasi dan iterasi lokal. Rilis resmi memakai tag `embed132` (`build.ps1 -Embed`) agar engine tertanam penuh dalam satu file `.exe` tanpa `blink.dll` terpisah.
 
 #### 1. Menggunakan Skrip PowerShell Otomatis
 ```powershell
@@ -146,15 +147,29 @@ cd respect
 
 # Bangun hanya Respect Lite (respect-lite.exe)
 .\scripts\build.ps1 -Target lite
+
+# Bangun Modern sebagai single-file mandiri (engine Chromium tertanam, siap distribusi)
+.\scripts\build.ps1 -Target modern -Embed
+
+# Tentukan nomor versi yang disuntikkan ke internal/version.AppVersion
+.\scripts\build.ps1 -Target all -Version 1.2.0
 ```
+
+> 💡 **Catatan Build Lokal:** secara default skrip membangun Modern dalam **mode slim** — `blink.dll` disalin ke samping binary dan hasilnya **bukan** single-file. Gunakan `-Embed` (tag `embed132`) untuk menghasilkan `.exe` mandiri seperti pada rilis. Hasil build lokal ada di `dist/respect/respect.exe` dan `dist/respect-lite/respect-lite.exe`.
 
 #### 2. Menggunakan Perintah Go Manual
 ```powershell
-# Respect Modern (Chromium 132)
+# Respect Modern (Chromium 132) — single-file mandiri (engine tertanam, sama seperti rilis)
+go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui" -o respect.exe .
+
+# Respect Modern — mode slim (wajib menyertakan blink.dll di folder yang sama)
 go build -tags v132 -ldflags="-s -w -H windowsgui" -o respect.exe .
 
 # Respect Lite (Miniblink 49)
 go build -ldflags="-s -w -H windowsgui" -o respect-lite.exe .
+
+# Opsional: menyuntikkan nomor versi aplikasi
+go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=1.2.0" -o respect.exe .
 ```
 
 ---
@@ -181,10 +196,9 @@ respect/
 
 ### Otomasi Rilis GitHub Actions
 Workflow rilis tersedia di `.github/workflows/release.yml`. Ketika tag versi dibuat (misal `git tag v1.0.0 && git push origin v1.0.0`), GitHub Actions akan:
-1. Mengompilasi `respect.exe` dan `respect-lite.exe` di mesin Windows runner.
-2. Menyuntikkan icon aplikasi resmi Respect.
-3. Mengarsipkan bundel `.zip` untuk rilis.
-4. Menerbitkan aset secara otomatis ke GitHub Releases.
+1. Mengompilasi `respect.exe`, `respect-lite.exe`, dan `respect-lite-x86.exe` (32-bit) di mesin Windows runner.
+2. Menyuntikkan icon aplikasi resmi Respect serta metadata versi yang diambil dari tag rilis.
+3. Menerbitkan aset `.exe` secara langsung ke GitHub Releases (tanpa arsip `.zip`).
 
 </details>
 
