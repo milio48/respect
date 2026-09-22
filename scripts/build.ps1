@@ -2,7 +2,9 @@ param (
     [ValidateSet('all', 'modern', 'lite')]
     [string]$Target = 'all',
 
-    [string]$OutDir = 'dist'
+    [string]$OutDir = 'dist',
+
+    [switch]$Embed
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,7 +53,8 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
     if (!(Test-Path $modernDir)) { New-Item -ItemType Directory -Path $modernDir -Force | Out-Null }
 
     $modernExe = Join-Path $modernDir 'respect.exe'
-    go build -tags v132 -ldflags='-s -w -H windowsgui' -o $modernExe .
+    $tags = if ($Embed) { "v132,embed132" } else { "v132" }
+    go build -tags $tags -ldflags='-s -w -H windowsgui' -o $modernExe .
 
     if ((Test-Path $rcedit) -and (Test-Path $iconFull)) {
         & $rcedit $modernExe `
@@ -65,33 +68,38 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
             --set-version-string "OriginalFilename" "respect.exe"
     }
 
-    $dllSource = ''
-    if (Test-Path 'test-v132\blink.dll') {
-        $dllSource = 'test-v132\blink.dll'
-    } elseif (Test-Path '_research\miniblink132\mb132_x64.dll') {
-        $dllSource = '_research\miniblink132\mb132_x64.dll'
-    }
-
-    $targetDll = Join-Path $modernDir 'blink.dll'
-    if ($dllSource -ne '') {
-        if (-not (Test-Path $targetDll)) {
-            Copy-Item -Path $dllSource -Destination $targetDll -Force
-            Write-Host "  -> blink.dll disalin dari $dllSource" -ForegroundColor DarkGray
-        } else {
-            try {
-                Copy-Item -Path $dllSource -Destination $targetDll -Force -ErrorAction Stop
-                Write-Host "  -> blink.dll diperbarui dari $dllSource" -ForegroundColor DarkGray
-            } catch {
-                Write-Host "  -> blink.dll sudah ada (terkunci oleh proses aktif, dipertahankan)" -ForegroundColor DarkGray
-            }
+    if (-not $Embed) {
+        $dllSource = ''
+        if (Test-Path 'assets\blink.dll') {
+            $dllSource = 'assets\blink.dll'
+        } elseif (Test-Path 'test-v132\blink.dll') {
+            $dllSource = 'test-v132\blink.dll'
+        } elseif (Test-Path '_research\miniblink132\mb132_x64.dll') {
+            $dllSource = '_research\miniblink132\mb132_x64.dll'
         }
-    } else {
-        Write-Warning 'blink.dll tidak ditemukan di test-v132 atau _research.'
+
+        $targetDll = Join-Path $modernDir 'blink.dll'
+        if ($dllSource -ne '') {
+            if (-not (Test-Path $targetDll)) {
+                Copy-Item -Path $dllSource -Destination $targetDll -Force
+                Write-Host "  -> blink.dll disalin dari $dllSource" -ForegroundColor DarkGray
+            } else {
+                try {
+                    Copy-Item -Path $dllSource -Destination $targetDll -Force -ErrorAction Stop
+                    Write-Host "  -> blink.dll diperbarui dari $dllSource" -ForegroundColor DarkGray
+                } catch {
+                    Write-Host "  -> blink.dll sudah ada (terkunci oleh proses aktif, dipertahankan)" -ForegroundColor DarkGray
+                }
+            }
+        } else {
+            Write-Warning 'blink.dll tidak ditemukan di assets, test-v132, atau _research.'
+        }
     }
 
     $modBytes = (Get-Item $modernExe).Length
     $modMB = [math]::Round(($modBytes / 1048576), 2)
-    Write-Host "  -> Selesai: $modernExe ($modMB MB slim binary)" -ForegroundColor Green
+    $typeDesc = if ($Embed) { "standalone single-file" } else { "slim binary" }
+    Write-Host "  -> Selesai: $modernExe ($modMB MB $typeDesc)" -ForegroundColor Green
 }
 
 Write-Host ''

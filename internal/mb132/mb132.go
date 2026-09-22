@@ -10,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+
+	"respect-app/assets"
 )
 
 var (
@@ -219,7 +221,8 @@ func GetAppSandboxDir() string {
 	return appDir
 }
 
-// findDLL mencari path DLL Miniblink 132 (blink.dll atau mb132_x64.dll)
+// findDLL mencari path DLL Miniblink 132 (blink.dll atau mb132_x64.dll).
+// Jika tidak ditemukan di folder lokal (mode slim dev), maka akan mengekstrak dari embedded assets (mode release).
 func findDLL() (string, error) {
 	self, err := os.Executable()
 	var searchDirs []string
@@ -235,13 +238,59 @@ func findDLL() (string, error) {
 	for _, dir := range searchDirs {
 		for _, name := range dllNames {
 			p := filepath.Join(dir, name)
-			if _, err := os.Stat(p); err == nil {
+			if fi, err := os.Stat(p); err == nil && fi.Size() > 0 {
 				return p, nil
 			}
 		}
 	}
 
+	// Jika mode release (single file .exe mandiri dengan engine tertanam)
+	if len(assets.BlinkDLL) > 0 {
+		return ensureExtractedDLL()
+	}
+
 	return "", errors.New("file Miniblink 132 DLL (blink.dll atau mb132_x64.dll) tidak ditemukan di folder aplikasi")
+}
+
+// ensureExtractedDLL mengekstrak embedded blink.dll ke cache lokal sistem (%LocalAppData%\respect\engine)
+func ensureExtractedDLL() (string, error) {
+	baseDir := os.Getenv("LOCALAPPDATA")
+	if baseDir == "" {
+		baseDir = filepath.Join(os.TempDir(), "respect")
+	}
+	engineDir := filepath.Join(baseDir, "respect", "engine")
+	targetPath := filepath.Join(engineDir, "blink.dll")
+
+	// Jika file cache sudah ada dengan ukuran sama persis, gunakan langsung (start instan)
+	if fi, err := os.Stat(targetPath); err == nil && fi.Size() == int64(len(assets.BlinkDLL)) {
+		return targetPath, nil
+	}
+
+	if err := os.MkdirAll(engineDir, 0755); err != nil {
+		return "", fmt.Errorf("gagal membuat direktori cache engine (%s): %w", engineDir, err)
+	}
+
+	tmpPath := targetPath + ".tmp"
+	if err := os.WriteFile(tmpPath, assets.BlinkDLL, 0644); err != nil {
+		if errDirect := os.WriteFile(targetPath, assets.BlinkDLL, 0644); errDirect != nil {
+			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() > 0 {
+				return targetPath, nil
+			}
+			return "", fmt.Errorf("gagal mengekstrak blink.dll ke %s: %w", targetPath, errDirect)
+		}
+		return targetPath, nil
+	}
+
+	_ = os.Remove(targetPath)
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() > 0 {
+			_ = os.Remove(tmpPath)
+			return targetPath, nil
+		}
+		return tmpPath, nil
+	}
+
+	return targetPath, nil
 }
 
 // Init memuat DLL dan menginisialisasi engine Miniblink 132

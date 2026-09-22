@@ -85,48 +85,21 @@ jobs:
           }
           $env:GOARCH = "amd64"
 
-          # 2. Bangun Respect Modern (v132 slim)
+          # 2. Bangun Respect Modern (v132 Standalone Single File - Engine Tertanam)
           $modernDir = "dist/respect"
           New-Item -ItemType Directory -Path $modernDir -Force | Out-Null
-          go build -tags v132 -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=$ver" -o "$modernDir/respect.exe" .
+          go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=$ver" -o "$modernDir/respect.exe" .
           if ((Test-Path "assets/rcedit.exe") -and (Test-Path "assets/respect-full.ico")) {
             .\assets\rcedit.exe "$modernDir/respect.exe" `
               --set-icon "assets/respect-full.ico" `
               --set-product-version "$ver" `
               --set-file-version "$fileVer" `
               --set-version-string "ProductName" "Respect Desktop" `
-              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Modern Engine)" `
+              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Modern Engine Standalone)" `
               --set-version-string "CompanyName" "milio48" `
               --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
               --set-version-string "OriginalFilename" "respect.exe"
           }
-
-      - name: Bundle blink.dll
-        shell: pwsh
-        run: |
-          $modernDir = "dist/respect"
-          if (Test-Path "assets/blink.dll") {
-            Copy-Item "assets/blink.dll" -Destination "$modernDir/blink.dll" -Force
-            Write-Host "blink.dll berhasil dibundel ke $modernDir"
-          } else {
-            Write-Host "assets/blink.dll tidak ditemukan, melewati bundel DLL."
-          }
-
-      - name: Package Release Archives
-        shell: pwsh
-        run: |
-          $ver = "${{ steps.get_version.outputs.version }}"
-          $releaseDir = "release-pkg"
-          New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
-
-          # Compress Respect Lite
-          Compress-Archive -Path "dist/respect-lite/*" -DestinationPath "$releaseDir/respect-lite-v$ver-windows.zip" -Force
-
-          # Compress Respect Modern
-          Compress-Archive -Path "dist/respect/*" -DestinationPath "$releaseDir/respect-v$ver-modern-win64.zip" -Force
-
-          Write-Host "Daftar paket rilis:"
-          Get-ChildItem $releaseDir | Select-Object Name, Length
 
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
@@ -138,7 +111,6 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            release-pkg/respect-lite-v${{ steps.get_version.outputs.version }}-windows.zip
-            release-pkg/respect-v${{ steps.get_version.outputs.version }}-modern-win64.zip
+            dist/respect/respect.exe
             dist/respect-lite/respect-lite.exe
             dist/respect-lite/respect-lite-x86.exe
