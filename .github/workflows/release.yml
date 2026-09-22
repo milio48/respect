@@ -117,14 +117,15 @@ jobs:
 
           # Buat README petunjuk untuk varian modern jika blink.dll belum dibundel
           if (!(Test-Path "$modernDir/blink.dll")) {
-            @"
-Respect Modern (v132)
-=====================
-Aplikasi ini membutuhkan Chromium 132 Engine (blink.dll) berarsitektur 64-bit.
-Letakkan file 'blink.dll' di folder yang sama dengan 'respect.exe'.
-
-Jika Anda membutuhkan versi portabel tanpa DLL eksternal, gunakan 'respect-lite.exe'.
-"@ | Out-File -FilePath "$modernDir/README.txt" -Encoding utf8
+            $msg = @(
+              "Respect Modern (v132)",
+              "=====================",
+              "Aplikasi ini membutuhkan Chromium 132 Engine (blink.dll) berarsitektur 64-bit.",
+              "Letakkan file 'blink.dll' di folder yang sama dengan 'respect.exe'.",
+              "",
+              "Jika Anda membutuhkan versi portabel tanpa DLL eksternal, gunakan 'respect-lite.exe'."
+            ) -join "`r`n"
+            Set-Content -Path "$modernDir/README.txt" -Value $msg -Encoding UTF8
           }
 
       - name: Package Release Archives
