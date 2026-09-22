@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
   <title>respect.exe — Standalone EXE Builder</title>
   <style>
     :root {
@@ -18,12 +19,39 @@
       --success-bg: rgba(63, 185, 80, 0.15);
       --danger: #f85149;
       --danger-bg: rgba(248, 81, 73, 0.15);
+      --warn: #d29922;
+      --warn-bg: rgba(210, 153, 34, 0.14);
       --input-bg: #0d1117;
       --input-border: #30363d;
       --focus-ring: rgba(88, 166, 255, 0.3);
+      --radius: 8px;
     }
 
+    /* Fallback warna untuk engine tanpa dukungan CSS Variables (mis. Miniblink v49).
+       Bila variabel didukung, aturan var() di bawah akan menimpanya secara otomatis. */
+    body { background: #0d1117; color: #c9d1d9; }
+    label, .field-label, input, textarea { color: #f0f6fc; }
+    .title-group h1 { color: #f0f6fc; }
+    .form-card { background: #161b22; border: 1px solid #30363d; }
+    .advanced-panel { background: rgba(13, 17, 23, 0.6); border: 1px solid #30363d; }
+    input, textarea, .segmented-control { background: #0d1117; border: 1px solid #30363d; }
+    .seg-btn, .chip, .advanced-toggle, .hint, .foot, .title-group p { color: #8b949e; }
+    .seg-btn.active { background: #21262d; color: #f0f6fc; }
+    .chip { background: #21262d; border: 1px solid #30363d; }
+    .btn-browse { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; }
+    .advanced-toggle { border: 1px dashed #30363d; }
+    .edition-pill { color: #58a6ff; }
+    .edition-pill.lite { color: #3fb950; }
+    #status-box.ok { background: rgba(63, 185, 80, 0.15); border: 1px solid #3fb950; }
+    #status-box.err { background: rgba(248, 81, 73, 0.15); border: 1px solid #f85149; }
+    #status-box.loading { background: rgba(88, 166, 255, 0.1); border: 1px solid #58a6ff; color: #58a6ff; }
+    .btn-build { border: 1px solid rgba(240, 246, 252, 0.1); }
+    input:focus, textarea:focus { border-color: #58a6ff; }
+    input.invalid, textarea.invalid { border-color: #f85149; }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    [hidden] { display: none !important; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -33,8 +61,15 @@
       line-height: 1.5;
       font-size: 13.5px;
       user-select: text;
+      -webkit-font-smoothing: antialiased;
     }
 
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+    button { font-family: inherit; }
 
     .container {
       max-width: 660px;
@@ -45,6 +80,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
       margin-bottom: 20px;
       padding-bottom: 14px;
       border-bottom: 1px solid var(--card-border);
@@ -54,6 +90,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
     }
 
     .logo-badge {
@@ -65,12 +102,18 @@
       border-radius: 6px;
       letter-spacing: 0.5px;
       box-shadow: 0 2px 8px rgba(31, 111, 235, 0.3);
+      flex: none;
     }
+
+    .title-group { min-width: 0; }
 
     .title-group h1 {
       font-size: 17px;
       color: var(--text-bright);
       font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .title-group p {
@@ -90,12 +133,20 @@
       border: 1px solid rgba(88, 166, 255, 0.3);
       color: var(--accent);
       letter-spacing: 0.3px;
+      white-space: nowrap;
+      flex: none;
     }
 
     .edition-pill.lite {
       background: rgba(63, 185, 80, 0.1);
       border-color: rgba(63, 185, 80, 0.3);
       color: #3fb950;
+    }
+
+    .edition-pill.unknown {
+      background: rgba(139, 148, 158, 0.1);
+      border-color: rgba(139, 148, 158, 0.35);
+      color: var(--muted);
     }
 
     .pill-dot {
@@ -113,11 +164,9 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     }
 
-    .field {
-      margin-bottom: 16px;
-    }
+    .field { margin-bottom: 16px; }
 
-    label {
+    label, .field-label {
       display: block;
       font-weight: 600;
       font-size: 12.5px;
@@ -131,7 +180,7 @@
       margin-top: 4px;
     }
 
-    input[type="text"], input[type="number"], select, textarea {
+    input[type="text"], input[type="number"], textarea {
       width: 100%;
       background: var(--input-bg);
       border: 1px solid var(--input-border);
@@ -139,29 +188,44 @@
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 13px;
-      transition: all 0.15s ease;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
       font-family: inherit;
     }
 
     textarea {
       font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
       resize: vertical;
-      min-height: 110px;
+      min-height: 60px;
       font-size: 12.5px;
       line-height: 1.4;
     }
 
-    input:focus, select:focus, textarea:focus {
+    input::placeholder, textarea::placeholder { color: #6e7681; }
+
+    input:focus, textarea:focus {
       outline: none;
       border-color: var(--accent);
       box-shadow: 0 0 0 3px var(--focus-ring);
     }
 
+    input.invalid, textarea.invalid { border-color: var(--danger); }
+
+    input.invalid:focus, textarea.invalid:focus {
+      box-shadow: 0 0 0 3px rgba(248, 81, 73, 0.25);
+    }
+
+    input:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .err { display: none; font-size: 11.5px; margin-top: 5px; line-height: 1.4; }
+    .err.show { display: block; }
+    .err.error { color: #ff7b72; }
+    .err.warn { color: #e3b341; }
+
     .segmented-control {
       display: flex;
       background: var(--input-bg);
       border: 1px solid var(--input-border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 3px;
       gap: 3px;
       margin-bottom: 14px;
@@ -178,8 +242,11 @@
       font-weight: 600;
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease;
+      white-space: nowrap;
     }
+
+    .seg-btn:hover:not(:disabled) { color: var(--text-bright); }
 
     .seg-btn.active {
       background: #21262d;
@@ -187,32 +254,90 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
 
+    .seg-btn:disabled { cursor: not-allowed; }
+
+    /* Flex dipakai (bukan CSS Grid) agar tetap rapi di engine Lite */
     .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
       gap: 12px;
     }
 
+    .grid-2 > * {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-row input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .btn-browse {
+      flex: none;
+      background: #21262d;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 0 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .btn-browse:hover:not(:disabled) {
+      color: var(--text-bright);
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.08);
+    }
+
+    .btn-browse:disabled { opacity: 0.6; cursor: not-allowed; }
+
     .preset-chips {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
-      margin-top: 6px;
+      margin-top: 8px;
     }
 
     .chip {
       background: #21262d;
       border: 1px solid var(--card-border);
       color: var(--muted);
-      padding: 2px 8px;
+      padding: 3px 9px;
       font-size: 11px;
       border-radius: 4px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     }
 
-    .chip:hover {
+    .chip:hover:not(:disabled) {
       color: var(--text-bright);
       border-color: var(--accent);
+    }
+
+    .chip.active {
+      color: var(--text-bright);
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.12);
+    }
+
+    .chip:disabled { cursor: not-allowed; opacity: 0.6; }
+
+    .seg-btn:focus-visible,
+    .chip:focus-visible,
+    .advanced-toggle:focus-visible,
+    .btn-build:focus-visible,
+    .btn-browse:focus-visible,
+    .btn-copy:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     .btn-build {
@@ -221,7 +346,7 @@
       padding: 12px 18px;
       background: linear-gradient(180deg, #238636 0%, #1a6327 100%);
       border: 1px solid rgba(240, 246, 252, 0.1);
-      border-radius: 8px;
+      border-radius: var(--radius);
       color: #fff;
       font-size: 14px;
       font-weight: 700;
@@ -230,19 +355,16 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, box-shadow 0.15s ease;
       box-shadow: 0 2px 8px rgba(35, 134, 54, 0.4);
     }
 
-    .btn-build:hover {
+    .btn-build:hover:not(:disabled) {
       background: linear-gradient(180deg, #2ea043 0%, #238636 100%);
       box-shadow: 0 4px 14px rgba(46, 160, 67, 0.5);
     }
 
-    .btn-build:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+    .btn-build:disabled { opacity: 0.65; cursor: not-allowed; }
 
     .advanced-toggle {
       width: 100%;
@@ -256,23 +378,25 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
       cursor: pointer;
       margin-top: 4px;
       margin-bottom: 14px;
-      transition: all 0.15s ease;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     }
 
-    .advanced-toggle:hover {
+    .advanced-toggle:hover:not(:disabled) {
       color: var(--text-bright);
       border-color: var(--accent);
       background: rgba(88, 166, 255, 0.05);
     }
 
+    .advanced-toggle:disabled { cursor: not-allowed; opacity: 0.6; }
+
     .advanced-panel {
-      display: none;
       background: rgba(13, 17, 23, 0.6);
       border: 1px solid var(--card-border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 14px;
       margin-bottom: 16px;
       animation: fadeIn 0.2s ease-out;
@@ -281,10 +405,12 @@
     #status-box {
       margin-top: 16px;
       padding: 12px 16px;
-      border-radius: 8px;
+      border-radius: var(--radius);
       display: none;
       font-size: 12.5px;
+      line-height: 1.55;
       animation: fadeIn 0.2s ease-out;
+      word-break: break-word;
     }
 
     #status-box.ok {
@@ -302,11 +428,55 @@
     }
 
     #status-box.loading {
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       background: rgba(88, 166, 255, 0.1);
       border: 1px solid var(--accent);
       color: var(--accent);
     }
+
+    #status-box strong { color: inherit; }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 6px;
+      flex-wrap: wrap;
+    }
+
+    .result-path {
+      flex: 1 1 220px;
+      min-width: 0;
+      background: rgba(1, 4, 9, 0.5);
+      border: 1px solid rgba(240, 246, 252, 0.12);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: #f0f6fc;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-copy {
+      flex: none;
+      background: rgba(240, 246, 252, 0.1);
+      border: 1px solid rgba(240, 246, 252, 0.2);
+      color: #f0f6fc;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-copy:hover { background: rgba(240, 246, 252, 0.2); }
+
+    .status-note { font-size: 11.5px; opacity: 0.85; }
 
     .spinner {
       display: inline-block;
@@ -316,6 +486,38 @@
       border-radius: 50%;
       border-top-color: #fff;
       animation: spin 0.6s linear infinite;
+      flex: none;
+    }
+
+    .btn-spinner { display: none; width: 13px; height: 13px; }
+
+    .btn-build.loading .btn-spinner { display: inline-block; }
+    .btn-build.loading #btn-icon { display: none; }
+
+    .foot {
+      margin-top: 14px;
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .foot code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      color: var(--text);
+    }
+
+    kbd {
+      font-family: inherit;
+      font-size: 10.5px;
+      background: #21262d;
+      border: 1px solid var(--card-border);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 1px 5px;
+      color: var(--text);
     }
 
     @keyframes spin {
@@ -325,6 +527,17 @@
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 560px) {
+      body { padding: 16px; }
+      .grid-2 { flex-direction: column; }
+      header { flex-wrap: wrap; }
+      .seg-btn { font-size: 11.5px; padding: 7px 6px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
@@ -340,257 +553,633 @@
       </div>
     </div>
     <div class="edition-pill" id="edition-pill">
-      <span class="pill-dot"></span>
-      <span id="edition-text">Loading...</span>
+      <span class="pill-dot" aria-hidden="true"></span>
+      <span id="edition-text">Mendeteksi…</span>
     </div>
   </header>
 
   <div class="form-card">
     <!-- Mode Selector -->
-    <div class="segmented-control">
-      <button type="button" class="seg-btn active" onclick="setMode('url')">🌐 URL Website</button>
-      <button type="button" class="seg-btn" onclick="setMode('html')">📄 HTML Inline</button>
-      <button type="button" class="seg-btn" onclick="setMode('file')">📁 File HTML Lokal</button>
+    <div class="segmented-control" role="group" aria-label="Pilih mode sumber konten">
+      <button type="button" class="seg-btn active" data-mode="url" aria-pressed="true">🌐 URL Website</button>
+      <button type="button" class="seg-btn" data-mode="html" aria-pressed="false">📄 HTML Inline</button>
+      <button type="button" class="seg-btn" data-mode="file" aria-pressed="false">📁 File HTML Lokal</button>
     </div>
-    <input type="hidden" id="mode" value="url">
 
     <!-- Source Input -->
     <div class="field">
       <label id="source-label" for="source">Target URL</label>
-      <textarea id="source" placeholder="https://my-app.example.com" spellcheck="false"></textarea>
+      <textarea id="source" placeholder="https://my-app.example.com" spellcheck="false" autocomplete="off"></textarea>
       <div class="hint" id="source-hint">Masukkan URL web lengkap termasuk https://</div>
+      <div class="err" id="err-source" role="alert"></div>
     </div>
 
     <!-- Output EXE Name & Title -->
     <div class="grid-2">
       <div class="field">
         <label for="outname">Nama Output File</label>
-        <input type="text" id="outname" value="demo.exe" placeholder="app.exe">
+        <input type="text" id="outname" value="demo.exe" placeholder="app.exe" spellcheck="false" autocomplete="off">
+        <div class="err" id="err-outname" role="alert"></div>
       </div>
       <div class="field">
         <label for="title">Judul Jendela</label>
-        <input type="text" id="title" value="My App" placeholder="Judul Aplikasi">
+        <input type="text" id="title" value="My App" placeholder="Judul Aplikasi" autocomplete="off">
+        <div class="err" id="err-title" role="alert"></div>
       </div>
     </div>
 
     <!-- Width & Height -->
     <div class="field">
-      <label>Ukuran Window (Lebar x Tinggi)</label>
-      <div class="grid-2">
-        <input type="number" id="width" value="1024" placeholder="Width">
-        <input type="number" id="height" value="768" placeholder="Height">
+      <span class="field-label" id="dims-label">Ukuran Window (Lebar x Tinggi)</span>
+      <div class="grid-2" role="group" aria-labelledby="dims-label">
+        <input type="number" id="width" value="1024" min="320" max="7680" step="1" placeholder="Lebar" inputmode="numeric" aria-label="Lebar jendela dalam piksel">
+        <input type="number" id="height" value="768" min="240" max="4320" step="1" placeholder="Tinggi" inputmode="numeric" aria-label="Tinggi jendela dalam piksel">
       </div>
+      <div class="err" id="err-width" role="alert"></div>
+      <div class="err" id="err-height" role="alert"></div>
       <div class="preset-chips">
-        <span class="chip" onclick="setDims(800, 600)">800x600</span>
-        <span class="chip" onclick="setDims(1024, 768)">1024x768</span>
-        <span class="chip" onclick="setDims(1280, 720)">1280x720 (HD)</span>
-        <span class="chip" onclick="setDims(1440, 900)">1440x900</span>
+        <button type="button" class="chip" data-w="800" data-h="600">800x600</button>
+        <button type="button" class="chip" data-w="1024" data-h="768">1024x768</button>
+        <button type="button" class="chip" data-w="1280" data-h="720">1280x720 (HD)</button>
+        <button type="button" class="chip" data-w="1440" data-h="900">1440x900</button>
       </div>
     </div>
 
     <!-- Icon Path -->
     <div class="field">
       <label for="icon">Path Icon (.ico) — Opsional</label>
-      <input type="text" id="icon" placeholder="C:\path\to\icon.ico">
-      <div class="hint">Kosongkan jika ingin menggunakan icon bawaan respect.exe</div>
+      <div class="input-row">
+        <input type="text" id="icon" placeholder="C:\path\to\icon.ico" spellcheck="false" autocomplete="off">
+        <button type="button" class="btn-browse" id="btn-icon-pick">Pilih…</button>
+      </div>
+      <div class="hint">Klik <strong>Pilih…</strong> untuk mencari file icon di komputer, atau tulis path-nya langsung. Kosongkan untuk memakai icon bawaan respect.exe.</div>
+      <div class="err" id="err-icon" role="alert"></div>
     </div>
 
     <!-- Advanced Metadata & Options Toggle -->
-    <button type="button" class="advanced-toggle" id="advanced-toggle" onclick="toggleAdvanced()">
+    <button type="button" class="advanced-toggle" id="advanced-toggle" aria-expanded="false" aria-controls="advanced-panel">
       <span>⚙️ Metadata &amp; Opsi Lanjutan (Versi, Perusahaan &amp; Hak Cipta)</span>
-      <span id="advanced-arrow">▼</span>
+      <span id="advanced-arrow" aria-hidden="true">▼</span>
     </button>
 
-    <div id="advanced-panel" class="advanced-panel">
+    <div id="advanced-panel" class="advanced-panel" hidden>
       <div class="grid-2">
         <div class="field">
           <label for="app-version">Versi Aplikasi</label>
-          <input type="text" id="app-version" value="1.0.0" placeholder="1.0.0">
+          <input type="text" id="app-version" value="1.0.0" placeholder="1.0.0" spellcheck="false" autocomplete="off">
           <div class="hint">Versi produk (contoh: 1.0.0)</div>
+          <div class="err" id="err-app-version" role="alert"></div>
         </div>
         <div class="field">
           <label for="company">Nama Perusahaan / Pengembang</label>
-          <input type="text" id="company" placeholder="Contoh: milio48 atau PT Solusi">
+          <input type="text" id="company" placeholder="Contoh: milio48 atau PT Solusi" autocomplete="off">
           <div class="hint">Ditampilkan di tab Properties Windows</div>
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" style="margin-bottom:0">
         <label for="copyright">Hak Cipta (Legal Copyright)</label>
-        <input type="text" id="copyright" placeholder="Contoh: Copyright © 2026 Developer">
+        <input type="text" id="copyright" placeholder="Contoh: Copyright © 2026 Developer" autocomplete="off">
       </div>
     </div>
 
     <!-- Submit Button -->
-    <button type="button" id="btn-build" class="btn-build" onclick="buildApp()">
-      <span id="btn-icon">🚀</span>
+    <button type="button" id="btn-build" class="btn-build">
+      <span class="spinner btn-spinner" aria-hidden="true"></span>
+      <span id="btn-icon" aria-hidden="true">🚀</span>
       <span id="btn-text">Build Standalone EXE</span>
     </button>
 
     <!-- Status Box -->
-    <div id="status-box"></div>
+    <div id="status-box" role="status" aria-live="polite"></div>
   </div>
+
+  <footer class="foot">
+    <span>Hasil build tersimpan di folder yang sama dengan <code>respect.exe</code>.</span>
+    <span>Tekan <kbd>Ctrl</kbd> + <kbd>Enter</kbd> untuk mulai build.</span>
+  </footer>
 </div>
 
 <script>
-  let currentMode = 'url';
+  var MODES = {
+    url: {
+      label: 'Target URL',
+      placeholder: 'https://my-app.example.com',
+      hint: 'URL web yang akan dimuat saat binary dijalankan.',
+      minHeight: '60px'
+    },
+    html: {
+      label: 'Kode HTML (Single-file)',
+      placeholder: '<!DOCTYPE html>\n<html>\n<head><title>App</title></head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>',
+      hint: 'Tuliskan kode HTML, CSS, dan JS yang akan di-bundle ke dalam EXE.',
+      minHeight: '150px'
+    },
+    file: {
+      label: 'Path File HTML Lokal',
+      placeholder: 'C:\\project\\dist\\index.html',
+      hint: 'Path absolut atau relatif ke file HTML utama.',
+      minHeight: '60px'
+    }
+  };
 
-  function toggleAdvanced() {
-    const panel = document.getElementById('advanced-panel');
-    const arrow = document.getElementById('advanced-arrow');
-    const isOpen = panel.style.display === 'block';
-    panel.style.display = isOpen ? 'none' : 'block';
-    arrow.textContent = isOpen ? '▼' : '▲';
+  var STORAGE_KEY = 'respect-builder-state';
+  var PERSIST_FIELDS = ['outname', 'title', 'width', 'height', 'icon', 'app-version', 'company', 'copyright'];
+
+  var currentMode = 'url';
+  var building = false;
+  var editionAttempts = 0;
+
+  function val(id) {
+    var el = document.getElementById(id);
+    return el ? el.value : '';
+  }
+
+  /* Iterasi DOM tanpa NodeList.forEach agar aman di engine Lite */
+  function each(selector, fn) {
+    var list = document.querySelectorAll(selector);
+    for (var i = 0; i < list.length; i++) fn(list[i], i);
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function clampInt(raw, min, max, fallback) {
+    var n = parseInt(String(raw).trim(), 10);
+    if (!isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
+  function normalizeOutName(raw) {
+    var name = String(raw).trim();
+    if (!name) return '';
+    if (!/\.exe$/i.test(name)) name += '.exe';
+    return name;
+  }
+
+  function setError(name, msg, type) {
+    var input = document.getElementById(name);
+    var box = document.getElementById('err-' + name);
+    if (input) input.classList.toggle('invalid', !!msg && type !== 'warn');
+    if (!box) return;
+    if (msg) {
+      box.textContent = (type === 'warn' ? '⚠ ' : '') + msg;
+      box.className = 'err show ' + (type === 'warn' ? 'warn' : 'error');
+    } else {
+      box.textContent = '';
+      box.className = 'err';
+    }
+  }
+
+  function clearErrors() {
+    ['outname', 'title', 'source', 'width', 'height', 'icon', 'app-version']
+      .forEach(function (name) { setError(name, ''); });
+  }
+
+  function toggleAdvanced(force) {
+    var panel = document.getElementById('advanced-panel');
+    var toggle = document.getElementById('advanced-toggle');
+    var open = typeof force === 'boolean' ? force : panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.getElementById('advanced-arrow').textContent = open ? '▲' : '▼';
+    saveState();
   }
 
   function setMode(mode) {
+    if (!MODES[mode]) mode = 'url';
     currentMode = mode;
-    document.getElementById('mode').value = mode;
 
-    document.querySelectorAll('.seg-btn').forEach((btn, idx) => {
-      const modes = ['url', 'html', 'file'];
-      btn.classList.toggle('active', modes[idx] === mode);
+    each('.seg-btn', function (btn) {
+      var on = btn.dataset.mode === mode;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
 
-    const label = document.getElementById('source-label');
-    const hint = document.getElementById('source-hint');
-    const src = document.getElementById('source');
+    var conf = MODES[mode];
+    document.getElementById('source-label').textContent = conf.label;
+    document.getElementById('source-hint').textContent = conf.hint;
+    var src = document.getElementById('source');
+    src.placeholder = conf.placeholder;
+    src.style.minHeight = conf.minHeight;
+    setError('source', '');
+    saveState();
+  }
 
-    if (mode === 'url') {
-      label.textContent = 'Target URL';
-      src.placeholder = 'https://my-app.example.com';
-      hint.textContent = 'URL web yang akan dimuat saat binary dijalankan.';
-      src.style.minHeight = '60px';
-    } else if (mode === 'html') {
-      label.textContent = 'Kode HTML (Single-file)';
-      src.placeholder = '<!DOCTYPE html>\n<html>\n<head><title>App</title></head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>';
-      hint.textContent = 'Tuliskan kode HTML, CSS, dan JS yang akan di-bundle ke dalam EXE.';
-      src.style.minHeight = '140px';
-    } else if (mode === 'file') {
-      label.textContent = 'Path File HTML Lokal';
-      src.placeholder = 'C:\\project\\dist\\index.html';
-      hint.textContent = 'Path absolut atau relatif ke file HTML utama.';
-      src.style.minHeight = '60px';
-    }
+  function updateDimsChips() {
+    var w = val('width').trim();
+    var h = val('height').trim();
+    each('.chip', function (chip) {
+      chip.classList.toggle('active', chip.dataset.w === w && chip.dataset.h === h);
+    });
   }
 
   function setDims(w, h) {
     document.getElementById('width').value = w;
     document.getElementById('height').value = h;
+    setError('width', '');
+    setError('height', '');
+    updateDimsChips();
+    saveState();
   }
 
-  async function buildApp() {
-    const outName = document.getElementById('outname').value.trim();
-    const source = document.getElementById('source').value.trim();
-    const title = document.getElementById('title').value.trim();
-    const width = parseInt(document.getElementById('width').value, 10) || 800;
-    const height = parseInt(document.getElementById('height').value, 10) || 600;
-    const iconPath = document.getElementById('icon').value.trim();
-    const appVersion = document.getElementById('app-version').value.trim() || '1.0.0';
-    const company = document.getElementById('company').value.trim();
-    const copyright = document.getElementById('copyright').value.trim();
+  function setBusy(on) {
+    building = on;
+    var btn = document.getElementById('btn-build');
+    each('input, textarea, .seg-btn, .chip, .btn-browse, #advanced-toggle', function (el) { el.disabled = on; });
+    btn.disabled = on;
+    btn.classList.toggle('loading', on);
+    document.getElementById('btn-text').textContent = on ? 'Membuat Binary EXE…' : 'Build Standalone EXE';
+  }
 
-    const statusBox = document.getElementById('status-box');
-    const btn = document.getElementById('btn-build');
-    const btnText = document.getElementById('btn-text');
-
-    if (!outName) {
-      showStatus('err', 'Nama output file EXE wajib diisi.');
-      return;
-    }
-    if (!source) {
-      showStatus('err', 'Sumber konten (URL/HTML/File) tidak boleh kosong.');
-      return;
-    }
-
-    const cfg = {
-      mode: currentMode,
-      source: source,
-      title: title || 'respect.exe',
-      width: width,
-      height: height,
-      icon_path: iconPath || '',
-      out_name: outName,
-      app_version: appVersion,
-      company: company,
-      copyright: copyright
-    };
-
-    btn.disabled = true;
-    btnText.textContent = 'Membuat Binary EXE...';
-    showStatus('loading', '<span class="spinner"></span> Sedang memproses dan menempelkan payload...');
-
+  function revealStatus(box) {
     try {
-      let resStr = "";
-      if (typeof window.mbQuery === 'function') {
-        // Komunikasi native Miniblink 132 (menerima customMsg dan response string)
-        resStr = await new Promise((resolve) => {
-          window.mbQuery(1, JSON.stringify(cfg), function(customMsg, response) {
+      box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } catch (e) {
+      try { box.scrollIntoView(); } catch (e2) { /* diabaikan */ }
+    }
+  }
+
+  function showLoading() {
+    var box = document.getElementById('status-box');
+    box.className = 'loading';
+    box.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Sedang membuat binary dan menempelkan payload…</span>';
+    revealStatus(box);
+  }
+
+  function showError(message, label) {
+    var box = document.getElementById('status-box');
+    box.className = 'err';
+    box.innerHTML = '<strong>' + escapeHtml(label || 'Gagal:') + '</strong> ' + escapeHtml(String(message || 'Terjadi kesalahan sistem'));
+    revealStatus(box);
+  }
+
+  function showResult(path) {
+    var box = document.getElementById('status-box');
+    var safe = escapeHtml(path || '');
+    box.className = 'ok';
+    box.innerHTML =
+      '<strong>🎉 Berhasil!</strong> File executable mandiri sudah siap.' +
+      (safe ? '<div class="result-row"><code class="result-path" title="' + safe + '">' + safe + '</code><button type="button" class="btn-copy">Salin path</button></div>' : '') +
+      '<div class="status-note">File ini bisa langsung dijalankan atau dibagikan — tanpa server maupun instalasi tambahan.</div>';
+    var copyBtn = box.querySelector('.btn-copy');
+    if (copyBtn && path) {
+      copyBtn.addEventListener('click', function () { copyText(path, copyBtn); });
+    }
+    revealStatus(box);
+  }
+
+  function fallbackCopy(text, done) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (done) done();
+    } catch (e) { /* clipboard tidak tersedia */ }
+  }
+
+  function copyText(text, btn) {
+    var done = function () {
+      if (!btn) return;
+      var original = btn.textContent;
+      btn.textContent = 'Tersalin!';
+      setTimeout(function () { btn.textContent = original; }, 1500);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+        return;
+      }
+    } catch (e) { /* jatuh ke fallback */ }
+    fallbackCopy(text, done);
+  }
+
+  function resolvePickerResult(resStr) {
+    var res = parseResult(resStr);
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || 'Dialog tidak mengembalikan hasil.');
+    }
+    return res.cancelled ? '' : (res.path || '');
+  }
+
+  function invokePicker() {
+    var payload = JSON.stringify({ cmd: 'pick-icon' });
+
+    if (typeof window.mbQuery === 'function') {
+      // Miniblink 132: satu kanal query, dibedakan lewat field "cmd"
+      return new Promise(function (resolve) {
+        window.mbQuery(1, payload, function (customMsg, response) {
+          resolve(resolvePickerResult(response || customMsg));
+        });
+      });
+    }
+
+    if (typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function') {
+      // Miniblink 49: kanal IPC khusus
+      return window.ipc.invoke('pick-icon', '').then(resolvePickerResult);
+    }
+
+    return Promise.reject(new Error('IPC Miniblink tidak tersedia di context ini.'));
+  }
+
+  function pickIcon() {
+    var btn = document.getElementById('btn-icon-pick');
+    if (btn.disabled) return;
+
+    var original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Membuka…';
+
+    invokePicker()
+      .then(function (path) {
+        if (path) {
+          document.getElementById('icon').value = path;
+          setError('icon', '');
+          saveState();
+        }
+      })
+      .catch(function (err) {
+        showError(err && err.message ? err.message : String(err), 'Gagal membuka dialog:');
+      })
+      .then(function () {
+        btn.textContent = original;
+        btn.disabled = false;
+      });
+  }
+
+  function collectConfig() {
+    return {
+      mode: currentMode,
+      source: val('source').trim(),
+      title: val('title').trim() || 'My App',
+      width: clampInt(val('width'), 320, 7680, 1024),
+      height: clampInt(val('height'), 240, 4320, 768),
+      icon_path: val('icon').trim(),
+      out_name: normalizeOutName(val('outname')),
+      app_version: val('app-version').trim() || '1.0.0',
+      company: val('company').trim(),
+      copyright: val('copyright').trim()
+    };
+  }
+
+  function validate(cfg) {
+    var firstInvalid = null;
+
+    function fail(name, message) {
+      setError(name, message, 'error');
+      if (!firstInvalid) firstInvalid = name;
+    }
+
+    clearErrors();
+
+    var rawOut = val('outname').trim();
+    if (!rawOut) {
+      fail('outname', 'Nama output file wajib diisi.');
+    } else if (/[<>:"/\\|?*]/.test(rawOut.replace(/\.exe$/i, ''))) {
+      fail('outname', 'Nama file tidak boleh mengandung karakter < > : " / \\ | ? *');
+    } else if (!/\.exe$/i.test(rawOut)) {
+      setError('outname', 'Ekstensi .exe ditambahkan otomatis.', 'warn');
+    }
+
+    if (!cfg.source) {
+      fail('source', currentMode === 'url'
+        ? 'URL target wajib diisi.'
+        : (currentMode === 'html' ? 'Kode HTML tidak boleh kosong.' : 'Path file HTML wajib diisi.'));
+    } else if (currentMode === 'url' && !/^https?:\/\//i.test(cfg.source)) {
+      setError('source', 'URL sebaiknya diawali http:// atau https://', 'warn');
+    } else if (currentMode === 'file' && !/\.html?$/i.test(cfg.source)) {
+      setError('source', 'Pastikan path mengarah ke file .html atau .htm', 'warn');
+    }
+
+    var wRaw = val('width').trim();
+    var hRaw = val('height').trim();
+    if (!/^\d+$/.test(wRaw)) fail('width', 'Lebar jendela harus berupa angka.');
+    else if (+wRaw < 320 || +wRaw > 7680) fail('width', 'Lebar di luar rentang wajar (320–7680 piksel).');
+
+    if (!/^\d+$/.test(hRaw)) fail('height', 'Tinggi jendela harus berupa angka.');
+    else if (+hRaw < 240 || +hRaw > 4320) fail('height', 'Tinggi di luar rentang wajar (240–4320 piksel).');
+
+    if (cfg.icon_path && !/\.ico$/i.test(cfg.icon_path)) {
+      setError('icon', 'Icon sebaiknya berformat .ico', 'warn');
+    }
+    if (!/^\d+(\.\d+){0,3}$/.test(cfg.app_version)) {
+      setError('app-version', 'Format versi disarankan x.y.z (contoh: 1.0.0)', 'warn');
+    }
+
+    return firstInvalid;
+  }
+
+  function invokeBuild(cfg) {
+    var payload = JSON.stringify(cfg);
+
+    if (typeof window.mbQuery === 'function') {
+      // Komunikasi native Miniblink 132 (menerima customMsg dan response string)
+      return new Promise(function (resolve) {
+        try {
+          window.mbQuery(1, payload, function (customMsg, response) {
             resolve(response || customMsg);
           });
-        });
-      } else if (typeof ipc !== 'undefined' && ipc.invoke) {
+        } catch (err) {
+          resolve(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }));
+        }
+      });
+    }
 
-        // Komunikasi Miniblink 49
-        resStr = await ipc.invoke('build-app', JSON.stringify(cfg));
-      } else {
-        throw new Error('IPC Miniblink tidak tersedia di context ini.');
-      }
+    if (typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function') {
+      // Komunikasi Miniblink 49
+      return window.ipc.invoke('build-app', payload);
+    }
 
-      let res = {};
-      try {
-        res = typeof resStr === 'string' ? JSON.parse(resStr) : resStr;
-      } catch (e) {
-        res = { ok: false, error: resStr };
-      }
+    return Promise.reject(new Error('IPC Miniblink tidak tersedia di context ini.'));
+  }
 
-
-      if (res.ok) {
-        showStatus('ok', `<strong>🎉 Berhasil!</strong> File executable mandiri telah siap:<br><code style="color:#fff;">${res.path || cfg.out_name}</code><br><span style="font-size:11.5px; opacity:0.85;">File ini dapat langsung dijalankan dan didistribusikan tanpa server atau instalasi apapun.</span>`);
-      } else {
-        showStatus('err', `<strong>Gagal:</strong> ${res.error || 'Terjadi kesalahan sistem'}`);
-      }
-    } catch (err) {
-      showStatus('err', `<strong>Error:</strong> ${err.message}`);
-    } finally {
-      btn.disabled = false;
-      btnText.textContent = 'Build Standalone EXE';
+  function parseResult(resStr) {
+    if (resStr && typeof resStr === 'object') return resStr;
+    try {
+      return JSON.parse(resStr);
+    } catch (e) {
+      return { ok: false, error: String(resStr) };
     }
   }
 
-  function showStatus(type, html) {
-    const box = document.getElementById('status-box');
-    box.className = type;
-    box.innerHTML = html;
+  function buildApp() {
+    if (building) return;
+
+    var cfg = collectConfig();
+    var invalid = validate(cfg);
+    if (invalid) {
+      var el = document.getElementById(invalid);
+      if (el) {
+        try { el.focus(); el.select(); } catch (e) { /* diabaikan */ }
+      }
+      showError('Periksa kembali isian yang ditandai merah.', 'Form belum lengkap:');
+      return;
+    }
+
+    saveState();
+    setBusy(true);
+    showLoading();
+
+    invokeBuild(cfg)
+      .then(function (resStr) {
+        var res = parseResult(resStr);
+        if (res && res.ok) {
+          showResult(res.path || cfg.out_name);
+        } else {
+          showError((res && res.error) || 'Terjadi kesalahan sistem', 'Gagal:');
+        }
+      })
+      .catch(function (err) {
+        showError(err && err.message ? err.message : String(err), 'Error:');
+      })
+      .then(function () { setBusy(false); });
   }
 
-  window.addEventListener('DOMContentLoaded', () => {
-    const pill = document.getElementById('edition-pill');
-    const txt = document.getElementById('edition-text');
-    const title = document.getElementById('app-title');
-    if (window.mbQuery) {
+  function saveState() {
+    try {
+      var state = {
+        mode: currentMode,
+        advanced: !document.getElementById('advanced-panel').hidden,
+        fields: {}
+      };
+      PERSIST_FIELDS.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) state.fields[id] = el.value;
+      });
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) { /* localStorage tidak tersedia — abaikan */ }
+  }
+
+  function loadState() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applyEdition(isModern) {
+    var pill = document.getElementById('edition-pill');
+    var txt = document.getElementById('edition-text');
+    var title = document.getElementById('app-title');
+
+    if (isModern === true) {
       pill.className = 'edition-pill';
       txt.textContent = 'respect.exe (Modern v132)';
       title.textContent = 'respect.exe — Desktop Builder';
-    } else if (window.ipc && window.ipc.invoke) {
+    } else if (isModern === false) {
       pill.className = 'edition-pill lite';
       txt.textContent = 'respect-lite.exe (Lite v49)';
       title.textContent = 'respect-lite.exe — Desktop Builder';
     } else {
-      // Polling fallback singkat untuk deteksi IPC jika belum ter-inject saat DOMReady
-      setTimeout(() => {
-        if (window.mbQuery) {
-          pill.className = 'edition-pill';
-          txt.textContent = 'respect.exe (Modern v132)';
-          title.textContent = 'respect.exe — Desktop Builder';
-        } else if (window.ipc && window.ipc.invoke) {
-          pill.className = 'edition-pill lite';
-          txt.textContent = 'respect-lite.exe (Lite v49)';
-          title.textContent = 'respect-lite.exe — Desktop Builder';
-        }
-      }, 200);
+      pill.className = 'edition-pill unknown';
+      txt.textContent = 'Builder tidak terdeteksi';
     }
-  });
+  }
+
+  function initEdition() {
+    if (typeof window.mbQuery === 'function') {
+      applyEdition(true);
+      return;
+    }
+    if (typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function') {
+      applyEdition(false);
+      return;
+    }
+    if (++editionAttempts < 6) {
+      setTimeout(initEdition, 150);
+      return;
+    }
+    applyEdition(null);
+  }
+
+  function bindField(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+
+    el.addEventListener('input', function () {
+      setError(id, '');
+      if (id === 'width' || id === 'height') {
+        setError('width', '');
+        setError('height', '');
+        updateDimsChips();
+      }
+      saveState();
+    });
+
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          buildApp();
+        }
+      });
+    }
+  }
+
+  function init() {
+    PERSIST_FIELDS.concat(['source']).forEach(bindField);
+
+    document.getElementById('outname').addEventListener('blur', function () {
+      var normalized = normalizeOutName(this.value);
+      if (normalized && normalized !== this.value) this.value = normalized;
+      saveState();
+    });
+
+    each('.seg-btn', function (btn) {
+      btn.addEventListener('click', function () { setMode(btn.dataset.mode); });
+    });
+
+    each('.chip', function (chip) {
+      chip.addEventListener('click', function () {
+        setDims(parseInt(chip.dataset.w, 10), parseInt(chip.dataset.h, 10));
+      });
+    });
+
+    document.getElementById('advanced-toggle').addEventListener('click', function () { toggleAdvanced(); });
+    document.getElementById('btn-icon-pick').addEventListener('click', pickIcon);
+    document.getElementById('btn-build').addEventListener('click', buildApp);
+
+    document.addEventListener('keydown', function (ev) {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+        ev.preventDefault();
+        buildApp();
+      }
+    });
+
+    var saved = loadState();
+    if (saved) {
+      if (saved.fields) {
+        PERSIST_FIELDS.forEach(function (id) {
+          if (typeof saved.fields[id] === 'string' && document.getElementById(id)) {
+            document.getElementById(id).value = saved.fields[id];
+          }
+        });
+      }
+      setMode(saved.mode);
+      toggleAdvanced(!!saved.advanced);
+    } else {
+      setMode('url');
+    }
+
+    updateDimsChips();
+    initEdition();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 </script>
 
 </body>

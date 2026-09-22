@@ -73,6 +73,11 @@ func Run() {
 		return string(respBytes)
 	})
 
+	// Daftarkan IPC handler untuk dialog pilih file icon native
+	app.IPC.Handle(cmdPickIcon, func(_ string) string {
+		return pickIconJSON(ownerHWND(view))
+	})
+
 	view.LoadURL("http://builder/index.html")
 	view.ShowWindow()
 
@@ -89,4 +94,12 @@ func errJSON(err error) string {
 		"error": err.Error(),
 	})
 	return string(b)
+}
+
+// ownerHWND mengembalikan HWND jendela builder, atau 0 bila belum tersedia.
+func ownerHWND(view *blink.View) uintptr {
+	if view == nil || view.Window == nil {
+		return 0
+	}
+	return uintptr(view.Window.Hwnd)
 }

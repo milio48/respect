@@ -12,7 +12,7 @@ param (
 $ErrorActionPreference = 'Stop'
 
 Write-Host '========================================================' -ForegroundColor Cyan
-Write-Host '         RESPECT DESKTOP — AUTOMATED BUILDER            ' -ForegroundColor Cyan
+Write-Host '         RESPECT DESKTOP - AUTOMATED BUILDER            ' -ForegroundColor Cyan
 Write-Host '========================================================' -ForegroundColor Cyan
 Write-Host "Target  : $Target" -ForegroundColor Yellow
 Write-Host "Output  : $OutDir" -ForegroundColor Yellow
@@ -116,7 +116,7 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
                 }
             }
         } else {
-            Write-Warning 'blink.dll tidak ditemukan di assets, test-v132, atau _research. Binary slim tidak akan berjalan tanpa blink.dll — gunakan -Embed untuk single-file mandiri.'
+            Write-Warning 'blink.dll tidak ditemukan di assets, test-v132, atau _research. Binary slim tidak akan berjalan tanpa blink.dll - gunakan -Embed untuk single-file mandiri.'
         }
     }
 

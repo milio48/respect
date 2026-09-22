@@ -5,6 +5,10 @@
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://github.com/milio48/respect)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev)
 
+<p align="center">
+  <img src="assets/workflow-thumbnail.jpg" alt="Respect Desktop Workflow" width="100%">
+</p>
+
 **Respect Desktop** adalah aplikasi Windows praktis untuk mengubah situs website, web app, atau file HTML menjadi aplikasi desktop (`.exe`) mandiri siap pakai — **hanya dengan beberapa klik, tanpa perlu install server, Node.js, atau coding tambahan!**
 
 ---
@@ -69,7 +73,7 @@ Berdasarkan pengujian komparasi terhadap 88 fitur standar web modern (JavaScript
 3. **Isi formulir pembuatan**:
    - Pilih mode sumber: **URL Website**, **HTML Inline** (tempel kode HTML langsung), atau **File HTML Lokal** (tuliskan path file). Contoh URL: `https://aplikasisaya.com`.
    - Beri nama aplikasi Anda (contoh: `AplikasiSaya.exe`).
-   - *(Opsional)* Tuliskan path file icon `.ico` Anda, misalnya `C:\icons\app.ico`.
+   - *(Opsional)* Isi path file icon `.ico` (misalnya `C:\icons\app.ico`), atau klik tombol **Pilih…** untuk memilih file lewat dialog Windows.
 4. Klik tombol hijau **Build Standalone EXE**.
 5. **Selesai!** File `.exe` buatan Anda langsung jadi di folder yang sama dan siap digunakan atau dibagikan ke siapa saja.
 

@@ -728,6 +728,12 @@ func (v *WebView) OnDestroy(cb func()) {
 	v.onDestroyUser = cb
 }
 
+// HostHWND mengembalikan handle jendela host (HWND) milik webview.
+// Dipakai sebagai owner dialog native agar dialog tetap modal terhadap builder.
+func (v *WebView) HostHWND() uintptr {
+	return v.hwnd
+}
+
 // HandleQuery mendaftarkan fungsi Go untuk merespons query JavaScript (window.mbQuery)
 func (v *WebView) HandleQuery(handler func(req string) string) {
 	v.onQueryUser = handler
