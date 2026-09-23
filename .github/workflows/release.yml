@@ -65,3 +65,5 @@ jobs:
             dist/respect/respect.exe
             dist/respect-lite/respect-lite.exe
             dist/respect-lite/respect-lite-x86.exe
+            dist/demo-stress-testing.exe
+            dist/demo-stress-testing_lite.exe

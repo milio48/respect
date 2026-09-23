@@ -23,6 +23,9 @@ Langsung unduh edisi executable yang sesuai dengan kebutuhan Anda:
 | 🌟 **Pilihan Terbaik & Paling Direkomendasikan**<br>Mendukung web modern, Tailwind CSS, animasi halus, dan visual kaya *(Chromium 132)*. | 🪶 **Paling Ringan & Hemat Memori RAM**<br>Sangat enteng (~25–40 MB RAM), cocok untuk aplikasi kasir atau PC lawas *(Miniblink 49)*. |
 | [⬇️ **Unduh Edisi Modern (64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows 7, 8, 10, 11)* | [⬇️ **Unduh Edisi Lite (32/64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows XP s.d. 11)* |
 
+> 🎮 **Ingin mencoba performa & kapabilitas engine langsung?**
+> Unduh file demo siap jalan di halaman Releases: [**`demo-stress-testing.exe`** (Modern)](https://github.com/milio48/respect/releases) atau [**`demo-stress-testing_lite.exe`** (Lite)](https://github.com/milio48/respect/releases) untuk menguji 120+ standar web, audio oscilloscope, kamera, dan simulasi fisika 20.000 partikel 60 FPS.
+
 ---
 
 ## 🚀 Contoh Penggunaan

@@ -6,7 +6,9 @@ param (
 
     [string]$Version = '1.0.0',
 
-    [switch]$Embed
+    [switch]$Embed,
+
+    [switch]$BuildDemo
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +20,7 @@ Write-Host "Target  : $Target" -ForegroundColor Yellow
 Write-Host "Output  : $OutDir" -ForegroundColor Yellow
 Write-Host "Version : $Version" -ForegroundColor Yellow
 Write-Host "Embed   : $(if ($Embed) { 'Yes (ZSTD Standalone Single-File)' } else { 'No (Slim Binary)' })" -ForegroundColor Yellow
+Write-Host "Demo    : $(if ($BuildDemo) { 'Yes (Build demo-stress-testing executables)' } else { 'Auto (When Target=all and Embed)' })" -ForegroundColor Yellow
 Write-Host ''
 
 # Versi PE wajib 4 segmen numerik (contoh: 1.0.0 -> 1.0.0.0, 1.0.0-beta -> 1.0.0.0)
@@ -26,9 +29,11 @@ $fileVersion = (@($numeric + @('0', '0', '0', '0'))[0..3]) -join '.'
 $prodVersion = (@($numeric + @('0', '0', '0'))[0..2]) -join '.'
 $ldVersion   = "-X respect-app/internal/version.AppVersion=$Version"
 
-$rcedit   = Join-Path $PSScriptRoot '..\assets\rcedit.exe'
-$iconLite = Join-Path $PSScriptRoot '..\assets\respect-lite.ico'
-$iconFull = Join-Path $PSScriptRoot '..\assets\respect-full.ico'
+$rcedit     = Join-Path $PSScriptRoot '..\assets\rcedit.exe'
+$iconLite   = Join-Path $PSScriptRoot '..\assets\respect-lite.ico'
+$iconFull   = Join-Path $PSScriptRoot '..\assets\respect-full.ico'
+$iconStress = Join-Path $PSScriptRoot '..\assets\respect-stress.ico'
+$stressDir  = Join-Path $PSScriptRoot '..\stress-testing'
 
 $totalSteps = if ($Target -eq 'all') { 3 } else { 1 }
 $step = 0
@@ -174,6 +179,47 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
     $typeDesc = if ($Embed) { "standalone single-file" } else { "slim binary" }
     Write-Host "  -> Selesai: $modernExe ($modMB MB $typeDesc)" -ForegroundColor Green
     $built += 'respect.exe'
+}
+
+# 3. Build Demo Executables (Payload: stress-testing)
+$shouldBuildDemo = $BuildDemo -or ($Target -eq 'all' -and $Embed)
+if ($shouldBuildDemo -and (Test-Path $stressDir)) {
+    Write-Host ''
+    Write-Host '========================================================' -ForegroundColor Magenta
+    Write-Host '     MEMBANGUN DEMO EXECUTABLES (STRESS TESTING)        ' -ForegroundColor Magenta
+    Write-Host '========================================================' -ForegroundColor Magenta
+
+    $iconArg = if (Test-Path $iconStress) { "--icon `"$iconStress`"" } else { "" }
+
+    # A. Demo Modern (Chromium 132)
+    $modernExe = Join-Path (Join-Path $OutDir 'respect') 'respect.exe'
+    if (Test-Path $modernExe) {
+        $demoModern = Join-Path $OutDir 'demo-stress-testing.exe'
+        Write-Host "Membangun $demoModern..." -ForegroundColor Yellow
+        $cmdModern = "`"$modernExe`" --build --dir `"$stressDir`" $iconArg --out `"$demoModern`" --title `"Respect Stress Testing Suite`" --app-version `"$Version`""
+        cmd /c "$cmdModern"
+        if (Test-Path $demoModern) {
+            $bytes = (Get-Item $demoModern).Length
+            $mb = [math]::Round(($bytes / 1048576), 2)
+            Write-Host "  -> Selesai: $demoModern ($mb MB)" -ForegroundColor Green
+            $built += 'demo-stress-testing.exe'
+        }
+    }
+
+    # B. Demo Lite (Miniblink 49)
+    $liteExe = Join-Path (Join-Path $OutDir 'respect-lite') 'respect-lite.exe'
+    if (Test-Path $liteExe) {
+        $demoLite = Join-Path $OutDir 'demo-stress-testing_lite.exe'
+        Write-Host "Membangun $demoLite..." -ForegroundColor Yellow
+        $cmdLite = "`"$liteExe`" --build --dir `"$stressDir`" $iconArg --out `"$demoLite`" --title `"Respect Stress Testing Suite (Lite)`" --app-version `"$Version`""
+        cmd /c "$cmdLite"
+        if (Test-Path $demoLite) {
+            $bytes = (Get-Item $demoLite).Length
+            $mb = [math]::Round(($bytes / 1048576), 2)
+            Write-Host "  -> Selesai: $demoLite ($mb MB)" -ForegroundColor Green
+            $built += 'demo-stress-testing_lite.exe'
+        }
+    }
 }
 
 Write-Host ''

@@ -43,11 +43,12 @@ Get-Help .\scripts\build.ps1 -Detailed
 | `.\scripts\build.ps1 -Target modern -Embed` | `dist/respect/respect.exe` | **Standalone Single-File** | Engine Chromium 132 dikompresi ZSTD (level 19) dan ditanamkan ke dalam `.exe`. |
 | `.\scripts\build.ps1 -Target lite` | `dist/respect-lite/respect-lite.exe` | **Standalone 64-bit** | Engine Miniblink 49 tertanam (x64). |
 | `.\scripts\build.ps1 -Target lite-x86` | `dist/respect-lite/respect-lite-x86.exe` | **Standalone 32-bit** | Engine Miniblink 49 tertanam untuk sistem lawas/32-bit (x86). |
-| `.\scripts\build.ps1 -Target all -Embed` | Semua varian di atas | **Full Standalone** | Membangun seluruh varian untuk persiapan rilis resmi. |
+| `.\scripts\build.ps1 -Target all -Embed` | Semua varian di atas + Demo Apps | **Full Standalone** | Membangun seluruh varian + `demo-stress-testing.exe` & `demo-stress-testing_lite.exe` untuk persiapan rilis resmi. |
 
 ### Parameter Tambahan Skrip `build.ps1`
 
 - **`-Embed`**: Menanamkan engine Chromium ke dalam file executable (menggunakan tag Go `embed132`). Wajib untuk distribusi ke pengguna akhir agar berformat single-file.
+- **`-BuildDemo`**: Membangun aplikasi demo `dist/demo-stress-testing.exe` dan `dist/demo-stress-testing_lite.exe` dengan payload suite `stress-testing/` dan icon `assets/respect-stress.ico`. Otomatis aktif saat `-Target all -Embed`.
 - **`-Version <string>`**: Menyuntikkan string nomor versi ke `respect-app/internal/version.AppVersion` (contoh: `-Version 1.2.0`). Jika diabaikan, nomor versi dibaca dari git tag aktif atau default `dev`.
 
 ---
@@ -103,6 +104,7 @@ respect/
 │   ├── icon-lite.png            # Aset grafis dokumentasi (Lite)
 │   ├── respect-full.ico         # Icon Windows PE resmi untuk Respect Modern
 │   ├── respect-lite.ico         # Icon Windows PE resmi untuk Respect Lite
+│   ├── respect-stress.ico       # Icon Windows PE resmi untuk Demo Stress Testing
 │   ├── rcedit.exe               # Utilitas stamping resource PE Win32 (embedded)
 │   └── workflow-thumbnail.jpg   # Banner alur kerja Respect
 ├── docs/                        # Dokumentasi Markdown resmi untuk GitHub Pages
@@ -136,8 +138,13 @@ respect/
 │       ├── version_v132.go      # Metadata versi Respect Modern
 │       └── version_v49.go       # Metadata versi Respect Lite
 ├── scripts/
-│   ├── build.ps1                # Skrip utama kompilasi multi-target
+│   ├── build.ps1                # Skrip utama kompilasi multi-target & demo apps
 │   └── verify_cookies_and_zombie.ps1 # Skrip verifikasi isolasi sandbox & process leak
+├── stress-testing/              # Suite web diagnostik & stress testing browser resmi
+│   ├── index.html               # Dashboard lab HUD & tabbed telemetry
+│   ├── worker.js                # Web Worker untuk multithreaded compute benchmark
+│   ├── css/                     # Styling dark cyberpunk telemetry
+│   └── js/                      # Modul fingerprint, apidump, capability, media, stress
 ├── go.mod                       # Definisi modul Go
 ├── go.sum                       # Checksum ketergantungan modul
 ├── lifecycle.md                 # Salinan arsitektur teknis inti di root
