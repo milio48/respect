@@ -55,7 +55,7 @@ try {
 	if localAppData == "" {
 		localAppData = os.TempDir()
 	}
-	appDir := filepath.Join(localAppData, "respect", "apps", appName)
+	appDir := filepath.Join(localAppData, "respect_desktop", "apps", appName)
 	_ = os.MkdirAll(filepath.Join(appDir, "storage"), 0755)
 
 	cookiePath := append([]byte(filepath.Join(appDir, "cookies.dat")), 0)

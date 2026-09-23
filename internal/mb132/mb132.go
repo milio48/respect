@@ -190,7 +190,7 @@ func ptrToUtf8(ptr uintptr) string {
 }
 
 // GetAppSandboxDir mengembalikan path folder penyimpanan sandbox unik untuk aplikasi ini
-// di %LOCALAPPDATA%\respect\apps\<appName>\ sehingga sesi antar aplikasi tidak saling bentrok.
+// di %LOCALAPPDATA%\respect_desktop\apps\<appName>\ sehingga sesi antar aplikasi tidak saling bentrok.
 func GetAppSandboxDir() string {
 	base := os.Getenv("LOCALAPPDATA")
 	if base == "" {
@@ -219,7 +219,7 @@ func GetAppSandboxDir() string {
 		appName = "default"
 	}
 
-	appDir := filepath.Join(base, "respect", "apps", appName)
+	appDir := filepath.Join(base, "respect_desktop", "apps", appName)
 	_ = os.MkdirAll(appDir, 0755)
 	return appDir
 }
@@ -257,13 +257,13 @@ func findDLL() (string, error) {
 
 const expectedBlinkDLLSize = 68962816
 
-// ensureExtractedDLL mendekompresi dan mengekstrak embedded blink.dll.zst ke cache lokal sistem (%LocalAppData%\respect\engine)
+// ensureExtractedDLL mendekompresi dan mengekstrak embedded blink.dll.zst ke cache lokal sistem (%LocalAppData%\respect_desktop\engine)
 func ensureExtractedDLL() (string, error) {
 	baseDir := os.Getenv("LOCALAPPDATA")
 	if baseDir == "" {
-		baseDir = filepath.Join(os.TempDir(), "respect")
+		baseDir = filepath.Join(os.TempDir(), "respect_desktop")
 	}
-	engineDir := filepath.Join(baseDir, "respect", "engine")
+	engineDir := filepath.Join(baseDir, "respect_desktop", "engine")
 	targetPath := filepath.Join(engineDir, "blink.dll")
 
 	// Jika file cache sudah ada dengan ukuran sama persis (68.96 MB), gunakan langsung (start instan 0 ms)
