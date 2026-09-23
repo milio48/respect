@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
+	"respect-app/internal/cryptopayload"
 	"respect-app/internal/tarball"
 )
 
@@ -95,12 +96,21 @@ func TestPayloadV2(t *testing.T) {
 	zstdBlob := enc.EncodeAll(tarBytes, nil)
 	enc.Close()
 
+	peSample := dummyExe
+	if len(peSample) > 4096 {
+		peSample = peSample[:4096]
+	}
+	encryptedBlob, err := cryptopayload.Encrypt(zstdBlob, peSample, int64(len(dummyExe)))
+	if err != nil {
+		t.Fatalf("cryptopayload.Encrypt gagal: %v", err)
+	}
+
 	lenBuf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(lenBuf, uint64(len(zstdBlob)))
+	binary.LittleEndian.PutUint64(lenBuf, uint64(len(encryptedBlob)))
 
 	var fullFile []byte
 	fullFile = append(fullFile, dummyExe...)
-	fullFile = append(fullFile, zstdBlob...)
+	fullFile = append(fullFile, encryptedBlob...)
 	fullFile = append(fullFile, lenBuf...)
 	fullFile = append(fullFile, []byte(MagicV2)...)
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/klauspost/compress/zstd"
+	"respect-app/internal/cryptopayload"
 	"respect-app/internal/tarball"
 )
 
@@ -151,6 +152,28 @@ func BuildSelfV2(cfg Config, files map[string][]byte) error {
 		return err
 	}
 
-	// 5. Tempelkan trailer V2
-	return appendTrailer(cfg.OutName, zstdBlob, MagicV2)
+	// 5. Baca sample PE header dan ukuran total base executable untuk derived key
+	targetFile, err := os.Open(cfg.OutName)
+	if err != nil {
+		return fmt.Errorf("gagal membuka target exe untuk enkripsi: %w", err)
+	}
+	stat, err := targetFile.Stat()
+	if err != nil {
+		targetFile.Close()
+		return fmt.Errorf("gagal stat target exe: %w", err)
+	}
+	baseExeSize := stat.Size()
+	peSample := make([]byte, 4096)
+	n, _ := targetFile.ReadAt(peSample, 0)
+	targetFile.Close()
+	peSample = peSample[:n]
+
+	// 6. Enkripsi zstdBlob dengan AES-256-GCM
+	encryptedBlob, err := cryptopayload.Encrypt(zstdBlob, peSample, baseExeSize)
+	if err != nil {
+		return fmt.Errorf("gagal mengenkripsi payload v2: %w", err)
+	}
+
+	// 7. Tempelkan trailer V2 terenkripsi
+	return appendTrailer(cfg.OutName, encryptedBlob, MagicV2)
 }

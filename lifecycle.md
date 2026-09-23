@@ -134,7 +134,9 @@ TAHAP                   RESPECT MODERN (respect.exe)             RESPECT LITE (r
 ### Fase 1: Startup & Trailer Parsing (Sama di Kedua Varian)
 1. Binary membaca dirinya sendiri via `os.Executable()`.
 2. Binary membaca byte paling belakang file (16 byte terakhir) untuk memeriksa magic header:
-   - **`RESPECT_PAYLOAD_V2` (Format Baru: In-Memory TAR + Zstandard)**:
+   - **`RESPECT_PAYLOAD_V2` (Format Baru: In-Memory TAR + Zstandard + AES-256-GCM)**:
+     - Membaca sample PE header (4KB) dan base file size untuk menurunkan kunci AES-256 via HMAC-SHA256 (Dynamic Key Derivation).
+     - Otentikasi dan dekripsi ciphertext AES-256-GCM langsung di RAM (Zero-Leak).
      - Streaming dekompresi ZSTD langsung ke memori.
      - Unpack TAR in-memory ke `map[string][]byte`.
      - Konfigurasi `respect.json` diekstrak untuk inisialisasi window.

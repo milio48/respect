@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/klauspost/compress/zstd"
+	"respect-app/internal/cryptopayload"
 	"respect-app/internal/tarball"
 )
 
@@ -75,8 +76,24 @@ func ReadPayloadFrom(path string) (*Payload, error) {
 
 	// 4. Proses berdasarkan versi
 	if version == 2 {
-		// V2: zstd(TAR)
-		zr, err := zstd.NewReader(bytes.NewReader(payloadBuf))
+		// V2: AES-256-GCM(zstd(TAR))
+		// Baca sample PE header dari awal file dan ukuran base executable (payloadStart)
+		sampleLen := payloadStart
+		if sampleLen > 4096 {
+			sampleLen = 4096
+		}
+		peSample := make([]byte, sampleLen)
+		if _, err := f.ReadAt(peSample, 0); err != nil {
+			return nil, fmt.Errorf("gagal membaca sample pe header: %w", err)
+		}
+
+		// Dekripsi ciphertext AES-256-GCM
+		zstdBlob, err := cryptopayload.Decrypt(payloadBuf, peSample, payloadStart)
+		if err != nil {
+			return nil, fmt.Errorf("gagal dekripsi payload v2: %w", err)
+		}
+
+		zr, err := zstd.NewReader(bytes.NewReader(zstdBlob))
 		if err != nil {
 			return nil, fmt.Errorf("gagal inisialisasi dekompresi zstd trailer: %w", err)
 		}
