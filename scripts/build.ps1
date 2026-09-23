@@ -1,5 +1,5 @@
 param (
-    [ValidateSet('all', 'modern', 'lite')]
+    [ValidateSet('all', 'modern', 'lite', 'lite-x86')]
     [string]$Target = 'all',
 
     [string]$OutDir = 'dist',
@@ -17,6 +17,7 @@ Write-Host '========================================================' -Foregroun
 Write-Host "Target  : $Target" -ForegroundColor Yellow
 Write-Host "Output  : $OutDir" -ForegroundColor Yellow
 Write-Host "Version : $Version" -ForegroundColor Yellow
+Write-Host "Embed   : $(if ($Embed) { 'Yes (ZSTD Standalone Single-File)' } else { 'No (Slim Binary)' })" -ForegroundColor Yellow
 Write-Host ''
 
 # Versi PE wajib 4 segmen numerik (contoh: 1.0.0 -> 1.0.0.0, 1.0.0-beta -> 1.0.0.0)
@@ -29,20 +30,20 @@ $rcedit   = Join-Path $PSScriptRoot '..\assets\rcedit.exe'
 $iconLite = Join-Path $PSScriptRoot '..\assets\respect-lite.ico'
 $iconFull = Join-Path $PSScriptRoot '..\assets\respect-full.ico'
 
-$totalSteps = if ($Target -eq 'all') { 2 } else { 1 }
+$totalSteps = if ($Target -eq 'all') { 3 } else { 1 }
 $step = 0
 $built = @()
 
-# 1. Build Respect Lite (v49)
+# 1. Build Respect Lite (v49 64-bit)
 if ($Target -eq 'all' -or $Target -eq 'lite') {
     $step++
-    Write-Host "[$step/$totalSteps] Membangun Respect Lite (respect-lite.exe v49)..." -ForegroundColor Green
+    Write-Host "[$step/$totalSteps] Membangun Respect Lite (respect-lite.exe 64-bit)..." -ForegroundColor Green
     $liteDir = Join-Path $OutDir 'respect-lite'
     if (!(Test-Path $liteDir)) { New-Item -ItemType Directory -Path $liteDir -Force | Out-Null }
 
     $liteExe = Join-Path $liteDir 'respect-lite.exe'
     go build -ldflags="-s -w -H windowsgui $ldVersion" -o $liteExe .
-    if ($LASTEXITCODE -ne 0) { throw "go build Respect Lite gagal (exit code $LASTEXITCODE)" }
+    if ($LASTEXITCODE -ne 0) { throw "go build Respect Lite (64-bit) gagal (exit code $LASTEXITCODE)" }
     
     if ((Test-Path $rcedit) -and (Test-Path $iconLite)) {
         & $rcedit $liteExe `
@@ -50,7 +51,7 @@ if ($Target -eq 'all' -or $Target -eq 'lite') {
             --set-product-version $prodVersion `
             --set-file-version $fileVersion `
             --set-version-string "ProductName" "Respect Desktop Lite" `
-            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine)" `
+            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 64-bit)" `
             --set-version-string "CompanyName" "milio48" `
             --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
             --set-version-string "OriginalFilename" "respect-lite.exe"
@@ -63,6 +64,43 @@ if ($Target -eq 'all' -or $Target -eq 'lite') {
     $liteMB = [math]::Round(($liteBytes / 1048576), 2)
     Write-Host "  -> Selesai: $liteExe ($liteMB MB standalone)" -ForegroundColor Green
     $built += 'respect-lite.exe'
+}
+
+# 1b. Build Respect Lite x86 (v49 32-bit untuk Windows lawas)
+if ($Target -eq 'all' -or $Target -eq 'lite-x86') {
+    $step++
+    Write-Host "[$step/$totalSteps] Membangun Respect Lite x86 (respect-lite-x86.exe 32-bit)..." -ForegroundColor Green
+    $liteDir = Join-Path $OutDir 'respect-lite'
+    if (!(Test-Path $liteDir)) { New-Item -ItemType Directory -Path $liteDir -Force | Out-Null }
+
+    $liteX86Exe = Join-Path $liteDir 'respect-lite-x86.exe'
+    $env:GOARCH = "386"
+    try {
+        go build -ldflags="-s -w -H windowsgui $ldVersion" -o $liteX86Exe .
+        if ($LASTEXITCODE -ne 0) { throw "go build Respect Lite x86 (32-bit) gagal (exit code $LASTEXITCODE)" }
+    } finally {
+        $env:GOARCH = "amd64"
+    }
+
+    if ((Test-Path $rcedit) -and (Test-Path $iconLite)) {
+        & $rcedit $liteX86Exe `
+            --set-icon $iconLite `
+            --set-product-version $prodVersion `
+            --set-file-version $fileVersion `
+            --set-version-string "ProductName" "Respect Desktop Lite (32-bit)" `
+            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 32-bit)" `
+            --set-version-string "CompanyName" "milio48" `
+            --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
+            --set-version-string "OriginalFilename" "respect-lite-x86.exe"
+        if ($LASTEXITCODE -ne 0) { throw "rcedit gagal untuk $liteX86Exe (exit code $LASTEXITCODE)" }
+    } else {
+        Write-Warning 'rcedit.exe atau respect-lite.ico tidak ditemukan; icon & metadata dilewati.'
+    }
+
+    $liteX86Bytes = (Get-Item $liteX86Exe).Length
+    $liteX86MB = [math]::Round(($liteX86Bytes / 1048576), 2)
+    Write-Host "  -> Selesai: $liteX86Exe ($liteX86MB MB standalone 32-bit)" -ForegroundColor Green
+    $built += 'respect-lite-x86.exe'
 }
 
 # 2. Build Respect Modern (v132)
@@ -86,13 +124,15 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
     go build -tags $tags -ldflags="-s -w -H windowsgui $ldVersion" -o $modernExe .
     if ($LASTEXITCODE -ne 0) { throw "go build Respect Modern gagal (exit code $LASTEXITCODE)" }
 
+    $desc = if ($Embed) { "Respect Desktop Builder & Runner (Modern Engine Standalone)" } else { "Respect Desktop Builder & Runner (Modern Engine)" }
+
     if ((Test-Path $rcedit) -and (Test-Path $iconFull)) {
         & $rcedit $modernExe `
             --set-icon $iconFull `
             --set-product-version $prodVersion `
             --set-file-version $fileVersion `
             --set-version-string "ProductName" "Respect Desktop" `
-            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Modern Engine)" `
+            --set-version-string "FileDescription" $desc `
             --set-version-string "CompanyName" "milio48" `
             --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
             --set-version-string "OriginalFilename" "respect.exe"
