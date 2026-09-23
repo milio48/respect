@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -63,14 +64,17 @@ var (
 	procMbPopupDownloadMgr               *syscall.Proc
 
 	// Windows User32 & Kernel32 untuk window, dialog, icon, dan proses
-	user32               = syscall.NewLazyDLL("user32.dll")
-	kernel32             = syscall.NewLazyDLL("kernel32.dll")
-	procSendMessageW     = user32.NewProc("SendMessageW")
-	procLoadImageW       = user32.NewProc("LoadImageW")
-	procLoadIconW        = user32.NewProc("LoadIconW")
-	procMessageBoxW      = user32.NewProc("MessageBoxW")
-	procSetWindowTextW   = user32.NewProc("SetWindowTextW")
-	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
+	user32                  = syscall.NewLazyDLL("user32.dll")
+	kernel32                = syscall.NewLazyDLL("kernel32.dll")
+	procSendMessageW        = user32.NewProc("SendMessageW")
+	procLoadImageW          = user32.NewProc("LoadImageW")
+	procLoadIconW           = user32.NewProc("LoadIconW")
+	procMessageBoxW         = user32.NewProc("MessageBoxW")
+	procSetWindowTextW      = user32.NewProc("SetWindowTextW")
+	procShowWindow          = user32.NewProc("ShowWindow")
+	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
+	procGetModuleHandleW    = kernel32.NewProc("GetModuleHandleW")
+	procExitProcess         = kernel32.NewProc("ExitProcess")
 )
 
 const (
@@ -143,31 +147,37 @@ func installVehHandler() {
 	})
 }
 
-// cleanLocalArtifacts menghapus cookies.dat yang sempat tertulis di folder executable/cwd
+// cleanLocalArtifacts menghapus cookies.dat atau cookie.dat yang sempat tertulis di folder executable/cwd
 func cleanLocalArtifacts() {
-	self, err := os.Executable()
-	if err == nil {
-		dir := filepath.Dir(self)
+	cleanDir := func(dir string) {
+		if dir == "" {
+			return
+		}
 		_ = os.Remove(filepath.Join(dir, "cookies.dat"))
 		_ = os.Remove(filepath.Join(dir, "cookies.dat-journal"))
+		_ = os.Remove(filepath.Join(dir, "cookie.dat"))
+		_ = os.Remove(filepath.Join(dir, "cookie.dat-journal"))
 	}
-	cwd, err := os.Getwd()
-	if err == nil {
-		_ = os.Remove(filepath.Join(cwd, "cookies.dat"))
-		_ = os.Remove(filepath.Join(cwd, "cookies.dat-journal"))
+	if self, err := os.Executable(); err == nil {
+		cleanDir(filepath.Dir(self))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		cleanDir(cwd)
 	}
 }
 
 // spawnDetachedCleanup menjalankan proses cmd independen di background
-// dengan delay kecil untuk membersihkan cookies.dat jika libcurl menuliskannya di detik akhir proses
+// dengan delay kecil untuk membersihkan sisa cookie jika libcurl menuliskannya di detik akhir proses
 func spawnDetachedCleanup() {
 	self, err := os.Executable()
 	if err != nil {
 		return
 	}
-	cookieFile := filepath.Join(filepath.Dir(self), "cookies.dat")
+	dir := filepath.Dir(self)
+	c1 := filepath.Join(dir, "cookies.dat")
+	c2 := filepath.Join(dir, "cookie.dat")
 
-	cmdStr := fmt.Sprintf("ping 127.0.0.1 -n 1 >nul & del /f /q \"%s\" >nul 2>&1", cookieFile)
+	cmdStr := fmt.Sprintf("ping 127.0.0.1 -n 1 >nul & del /f /q \"%s\" \"%s\" >nul 2>&1", c1, c2)
 	cmd := exec.Command("cmd.exe", "/C", cmdStr)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
@@ -284,22 +294,14 @@ func ensureExtractedDLL() (string, error) {
 	}
 	defer zr.Close()
 
-	tmpPath := targetPath + ".tmp"
+	pid := os.Getpid()
+	tmpPath := fmt.Sprintf("%s.tmp.%d", targetPath, pid)
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		tmpFile, err = os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-		if err != nil {
-			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
-				return targetPath, nil
-			}
-			return "", fmt.Errorf("gagal membuka target DLL (%s): %w", targetPath, err)
+		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
+			return targetPath, nil
 		}
-		if _, err := io.Copy(tmpFile, zr); err != nil {
-			_ = tmpFile.Close()
-			return "", fmt.Errorf("gagal mendekompresi blink.dll: %w", err)
-		}
-		_ = tmpFile.Close()
-		return targetPath, nil
+		return "", fmt.Errorf("gagal membuka target DLL (%s): %w", targetPath, err)
 	}
 
 	if _, err := io.Copy(tmpFile, zr); err != nil {
@@ -309,13 +311,19 @@ func ensureExtractedDLL() (string, error) {
 	}
 	_ = tmpFile.Close()
 
-	_ = os.Remove(targetPath)
 	if err := os.Rename(tmpPath, targetPath); err != nil {
 		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
 			_ = os.Remove(tmpPath)
 			return targetPath, nil
 		}
-		return tmpPath, nil
+		_ = os.Remove(targetPath)
+		if err := os.Rename(tmpPath, targetPath); err != nil {
+			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
+				_ = os.Remove(tmpPath)
+				return targetPath, nil
+			}
+			return tmpPath, nil
+		}
 	}
 
 	return targetPath, nil
@@ -323,6 +331,7 @@ func ensureExtractedDLL() (string, error) {
 
 // Init memuat DLL dan menginisialisasi engine Miniblink 132
 func Init() error {
+	runtime.LockOSThread()
 	dllOnce.Do(func() {
 		// Bersihkan sisa cookies lama sebelum engine diinisialisasi
 		cleanLocalArtifacts()
@@ -462,6 +471,7 @@ func (wv *WebView) RegisterVirtualHost(files map[string][]byte) {
 
 // CreateWebWindow membuat jendela webview popup baru
 func CreateWebWindow(title string, width, height int) (*WebView, error) {
+	runtime.LockOSThread()
 	if err := Init(); err != nil {
 		return nil, err
 	}
@@ -493,6 +503,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 
 	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData sandbox unik per nama aplikasi
 	wv.SetIsolatedStorage()
+	cleanLocalArtifacts()
 
 	// 3. Tangani pembuatan popup/tab baru (target="_blank" dan window.open)
 	// Alihkan navigasi langsung ke jendela aktif agar alur OAuth/popup login berjalan mulus tanpa silent drop
@@ -652,6 +663,20 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 						}
 						return 1 // 1 (TRUE) = ditangani in-memory oleh Go, jangan kirim ke jaringan
 					}
+
+					// Jika path tidak ditemukan di virtualFiles (misal favicon.ico atau 404):
+					// Tetap tangani in-memory (return 1) agar request TIDAK bocor ke libcurl/jaringan!
+					// Kebocoran request http://app/* ke libcurl menyebabkan libcurl membuat cookies.dat lokal di folder EXE!
+					if procMbNetSetMIMEType != nil {
+						pureMime := "text/plain"
+						mimeBytes := append([]byte(pureMime), 0)
+						procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
+					}
+					if procMbNetSetData != nil {
+						var empty byte
+						procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&empty)), 0)
+					}
+					return 1 // 1 = tangani in-memory, blokir dari jaringan
 				}
 			}
 
@@ -714,24 +739,34 @@ try {
 	wv.MoveToCenter()
 
 	// 9. Pasang handler OnClose agar saat tombol X titlebar diklik,
-	// message loop segera dihentikan sehingga proses langsung keluar dari Task Manager
+	// segera bersihkan artifacts dan akhiri proses tanpa zombie
 	if procMbOnClose != nil {
 		wv.onCloseCb = syscall.NewCallback(func(h, param, unuse uintptr) uintptr {
 			if wv.onDestroyUser != nil {
 				wv.onDestroyUser()
 			}
-			ExitMessageLoop()
-			return 0
+			cleanLocalArtifacts()
+			spawnDetachedCleanup()
+			if procExitProcess != nil {
+				procExitProcess.Call(0)
+			}
+			os.Exit(0)
+			return 1
 		})
 		procMbOnClose.Call(wv.Handle, wv.onCloseCb, 0)
 	}
 
-	// Pasang callback OnDestroy standar
+	// Pasang callback OnDestroy standar: segera bersihkan artifacts dan akhiri proses
 	wv.onDestroyCb = syscall.NewCallback(func(v, p1, p2 uintptr) uintptr {
 		if wv.onDestroyUser != nil {
 			wv.onDestroyUser()
 		}
-		ExitMessageLoop()
+		cleanLocalArtifacts()
+		spawnDetachedCleanup()
+		if procExitProcess != nil {
+			procExitProcess.Call(0)
+		}
+		os.Exit(0)
 		return 0
 	})
 	procMbOnDestroy.Call(wv.Handle, wv.onDestroyCb, 0)
@@ -785,9 +820,6 @@ func (v *WebView) SetIsolatedStorage() {
 	if err1 == nil && procMbSetCookieJarFullPath != nil {
 		procMbSetCookieJarFullPath.Call(v.Handle, uintptr(unsafe.Pointer(cookieFile)))
 	}
-	if err2 == nil && procMbSetCookieJarPath != nil {
-		procMbSetCookieJarPath.Call(v.Handle, uintptr(unsafe.Pointer(storagePath)))
-	}
 	if err2 == nil && procMbSetLocalStoragePath != nil {
 		procMbSetLocalStoragePath.Call(v.Handle, uintptr(unsafe.Pointer(storagePath)))
 	}
@@ -798,9 +830,15 @@ func (v *WebView) MoveToCenter() {
 	procMbMoveToCenter.Call(v.Handle)
 }
 
-// Show menampilkan jendela
+// Show menampilkan jendela dan memastikan window HWND aktif di layer terdepan
 func (v *WebView) Show() {
-	procMbShowWindow.Call(v.Handle, 1)
+	if procMbShowWindow != nil {
+		procMbShowWindow.Call(v.Handle, 1)
+	}
+	if v.hwnd != 0 {
+		procShowWindow.Call(v.hwnd, 5) // SW_SHOW = 5
+		procSetForegroundWindow.Call(v.hwnd)
+	}
 }
 
 // LoadURL memuat halaman web berdasarkan URL
@@ -893,24 +931,28 @@ func (v *WebView) SetIcon(iconBytes []byte) error {
 
 // RunMessageLoop menjalankan Windows message loop
 func RunMessageLoop() {
+	runtime.LockOSThread()
 	if procMbRunMessageLoop != nil {
 		procMbRunMessageLoop.Call()
 	}
 
-	// Setelah message loop berhenti, uninitialization dan bersihkan cookies
-	if procMbUninit != nil {
-		procMbUninit.Call()
-	}
 	cleanLocalArtifacts()
 	spawnDetachedCleanup()
+	if procExitProcess != nil {
+		procExitProcess.Call(0)
+	}
 	os.Exit(0)
 }
 
-// ExitMessageLoop menghentikan message loop
+// ExitMessageLoop menghentikan message loop dan mengakhiri proses secara bersih
 func ExitMessageLoop() {
 	if procMbExitMessageLoop != nil {
 		procMbExitMessageLoop.Call()
 	}
 	cleanLocalArtifacts()
 	spawnDetachedCleanup()
+	if procExitProcess != nil {
+		procExitProcess.Call(0)
+	}
+	os.Exit(0)
 }

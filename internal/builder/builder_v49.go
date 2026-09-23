@@ -37,6 +37,16 @@ func Run() {
 	view.Window.SetTitle(title)
 	view.Window.MoveToCenter()
 
+	// Isolasi cookie dan local storage agar tidak mencemari direktori aplikasi
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		localAppData = os.TempDir()
+	}
+	appDir := filepath.Join(localAppData, "respect_desktop", "apps", "respect-builder")
+	_ = os.MkdirAll(filepath.Join(appDir, "storage"), 0755)
+	view.SetCookieJarFullPath(filepath.Join(appDir, "cookie.dat"))
+	view.SetLocalStorageFullPath(filepath.Join(appDir, "storage"))
+
 	// Daftarkan IPC handler untuk menerima instruksi build dari frontend JavaScript
 	app.IPC.Handle("build-app", func(cfgJSON string) string {
 		var cfg payload.Config

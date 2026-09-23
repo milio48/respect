@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"syscall"
 
@@ -40,6 +41,10 @@ func attachConsole() {
 }
 
 func main() {
+	// Kunci OS thread utama agar seluruh panggilan GUI Win32 dan Chromium/Miniblink
+	// tetap terikat pada satu thread (mencegah zombie process akibat Go thread preemption)
+	goruntime.LockOSThread()
+
 	// Jika terdapat argumen CLI (misal --build atau --help), pasang console output
 	if len(os.Args) > 1 {
 		attachConsole()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	"respect-app/assets"
@@ -15,6 +16,7 @@ import (
 
 // Run menampilkan jendela Chromium 132 sesuai konfigurasi payload (V1 atau V2).
 func Run(p *payload.Payload) {
+	goruntime.LockOSThread()
 	cfg := &p.Config
 	cfg.Defaults()
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"respect-app/assets"
 	"respect-app/internal/mb132"
@@ -20,6 +21,7 @@ var indexHTML string
 
 // Run menjalankan antarmuka grafis (GUI) builder respect.exe menggunakan Chromium 132.
 func Run() {
+	runtime.LockOSThread()
 	title := fmt.Sprintf("%s — Standalone EXE Builder", version.BinaryName)
 	view, err := mb132.CreateWebWindow(title, 720, 680)
 	if err != nil {

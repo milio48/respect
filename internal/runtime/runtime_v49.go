@@ -60,11 +60,8 @@ try {
 	appDir := filepath.Join(localAppData, "respect_desktop", "apps", appName)
 	_ = os.MkdirAll(filepath.Join(appDir, "storage"), 0755)
 
-	cookiePath := append([]byte(filepath.Join(appDir, "cookies.dat")), 0)
-	_, _, _ = app.CallFunc("wkeSetCookieJarFullPath", uintptr(view.GetWindowHandle()), uintptr(unsafe.Pointer(&cookiePath[0])))
-
-	storagePath := append([]byte(filepath.Join(appDir, "storage")), 0)
-	_, _, _ = app.CallFunc("wkeSetLocalStorageFullPath", uintptr(view.GetWindowHandle()), uintptr(unsafe.Pointer(&storagePath[0])))
+	view.SetCookieJarFullPath(filepath.Join(appDir, "cookie.dat"))
+	view.SetLocalStorageFullPath(filepath.Join(appDir, "storage"))
 
 	// 3. Jika payload Versi 2 (In-Memory TAR Virtual Host via app.Resource.Bind)
 	if p.Version == 2 && len(p.Files) > 0 {
