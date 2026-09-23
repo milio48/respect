@@ -13,8 +13,9 @@ import (
 	"respect-app/internal/payload"
 )
 
-// Run menampilkan jendela Chromium 132 sesuai konfigurasi payload.
-func Run(cfg *payload.Config) {
+// Run menampilkan jendela Chromium 132 sesuai konfigurasi payload (V1 atau V2).
+func Run(p *payload.Payload) {
+	cfg := &p.Config
 	cfg.Defaults()
 
 	view, err := mb132.CreateWebWindow(cfg.Title, cfg.Width, cfg.Height)
@@ -27,6 +28,20 @@ func Run(cfg *payload.Config) {
 		_ = view.SetIcon(assets.RespectIcon)
 	}
 
+	// 1. Jika payload Versi 2 (In-Memory TAR Virtual Host)
+	if p.Version == 2 && len(p.Files) > 0 {
+		view.RegisterVirtualHost(p.Files)
+		entryURL := "http://app/index.html"
+		if cfg.Source != "" && !strings.HasPrefix(cfg.Source, "http") {
+			entryURL = "http://app/" + strings.TrimPrefix(cfg.Source, "/")
+		}
+		view.LoadURL(entryURL)
+		view.Show()
+		mb132.RunMessageLoop()
+		return
+	}
+
+	// 2. Jika payload Versi 1 (JSON tunggal legacy)
 	switch cfg.Mode {
 	case "url":
 		targetURL := strings.TrimSpace(cfg.Source)

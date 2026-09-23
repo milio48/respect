@@ -15,6 +15,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"respect-app/assets"
+	"respect-app/internal/tarball"
 )
 
 var (
@@ -49,6 +50,8 @@ var (
 	procMbSetNavigationToNewWindowEnable *syscall.Proc
 	procMbOnLoadUrlBegin                 *syscall.Proc
 	procMbNetSetHTTPHeaderFieldUtf8      *syscall.Proc
+	procMbNetSetData                     *syscall.Proc
+	procMbNetSetMIMEType                 *syscall.Proc
 	procMbOnDidCreateScriptContext       *syscall.Proc
 	procMbRunJs                          *syscall.Proc
 	procMbEnableHighDPISupport           *syscall.Proc
@@ -416,6 +419,8 @@ func Init() error {
 		procMbOnTitleChanged, _ = dllMod.FindProc("mbOnTitleChanged")
 		procMbOnDownload, _ = dllMod.FindProc("mbOnDownload")
 		procMbPopupDownloadMgr, _ = dllMod.FindProc("mbPopupDownloadMgr")
+		procMbNetSetData, _ = dllMod.FindProc("mbNetSetData")
+		procMbNetSetMIMEType, _ = dllMod.FindProc("mbNetSetMIMEType")
 
 		// Panggil mbInit terlebih dahulu agar Chromium AtExitManager terinisialisasi
 		procMbInit.Call(0)
@@ -446,6 +451,13 @@ type WebView struct {
 	onTitleChangedCb uintptr
 	onCreateViewCb   uintptr
 	onDownloadCb     uintptr
+
+	virtualFiles map[string][]byte
+}
+
+// RegisterVirtualHost mendaftarkan kumpulan file in-memory untuk disajikan pada host virtual "http://app/".
+func (wv *WebView) RegisterVirtualHost(files map[string][]byte) {
+	wv.virtualFiles = files
 }
 
 // CreateWebWindow membuat jendela webview popup baru
@@ -578,17 +590,63 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 		procMbOnDownload.Call(wv.Handle, wv.onDownloadCb, 0)
 	}
 
-	// 7. Injeksi HTTP Header (Accept-Language dan User-Agent) ke setiap request jaringan
-	// Menjamin Google dan website lain tidak pernah mendeteksi bahasa Cina
-	if procMbOnLoadUrlBegin != nil && procMbNetSetHTTPHeaderFieldUtf8 != nil {
+	// 7. Injeksi Virtual Host (In-Memory) & HTTP Header ke setiap request jaringan
+	if procMbOnLoadUrlBegin != nil {
 		langKey := []byte("Accept-Language\x00")
 		langVal := []byte(DefaultLanguage + "\x00")
 		uaKey := []byte("User-Agent\x00")
 		uaVal := []byte(DefaultUserAgent + "\x00")
 
 		wv.onLoadBeginCb = syscall.NewCallback(func(h, param, urlPtr, jobPtr uintptr) uintptr {
-			procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&langKey[0])), uintptr(unsafe.Pointer(&langVal[0])), 0)
-			procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&uaKey[0])), uintptr(unsafe.Pointer(&uaVal[0])), 0)
+			// A. Cek apakah request ditujukan ke Virtual Host in-memory (http://app/ atau https://app/)
+			if len(wv.virtualFiles) > 0 && urlPtr != 0 {
+				reqURL := ptrToUtf8(urlPtr)
+				const prefixHttp = "http://app/"
+				const prefixHttps = "https://app/"
+				var relPath string
+				matched := false
+
+				if strings.HasPrefix(reqURL, prefixHttp) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttp)
+					matched = true
+				} else if strings.HasPrefix(reqURL, prefixHttps) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttps)
+					matched = true
+				}
+
+				if matched {
+					if idx := strings.IndexAny(relPath, "?#"); idx != -1 {
+						relPath = relPath[:idx]
+					}
+					relPath = strings.TrimPrefix(relPath, "/")
+					if relPath == "" {
+						relPath = "index.html"
+					}
+
+					if data, ok := wv.virtualFiles[relPath]; ok {
+						mime := tarball.DetectMIME(relPath)
+						if procMbNetSetMIMEType != nil {
+							mimeBytes := append([]byte(mime), 0)
+							procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
+						}
+						if procMbNetSetData != nil {
+							if len(data) > 0 {
+								procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
+							} else {
+								var empty byte
+								procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&empty)), 0)
+							}
+						}
+						return 1 // 1 (TRUE) = ditangani in-memory oleh Go, jangan kirim ke jaringan
+					}
+				}
+			}
+
+			// B. Request jaringan biasa: suntikkan header Accept-Language dan User-Agent
+			if procMbNetSetHTTPHeaderFieldUtf8 != nil {
+				procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&langKey[0])), uintptr(unsafe.Pointer(&langVal[0])), 0)
+				procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&uaKey[0])), uintptr(unsafe.Pointer(&uaVal[0])), 0)
+			}
 			return 0 // 0 = lanjutkan request secara normal
 		})
 		procMbOnLoadUrlBegin.Call(wv.Handle, wv.onLoadBeginCb, 0)

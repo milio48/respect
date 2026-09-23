@@ -14,13 +14,15 @@ import (
 	blink "github.com/epkgs/blink"
 	"respect-app/assets"
 	"respect-app/internal/payload"
+	"respect-app/internal/tarball"
 )
 
 // User-Agent modern untuk kompatibilitas web Miniblink 49
 const defaultModernUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\x00"
 
-// Run menampilkan jendela Miniblink 49 sesuai konfigurasi payload.
-func Run(cfg *payload.Config) {
+// Run menampilkan jendela Miniblink 49 sesuai konfigurasi payload (V1 atau V2).
+func Run(p *payload.Payload) {
+	cfg := &p.Config
 	cfg.Defaults()
 
 	app := blink.NewApp()
@@ -64,6 +66,24 @@ try {
 	storagePath := append([]byte(filepath.Join(appDir, "storage")), 0)
 	_, _, _ = app.CallFunc("wkeSetLocalStorageFullPath", uintptr(view.GetWindowHandle()), uintptr(unsafe.Pointer(&storagePath[0])))
 
+	// 3. Jika payload Versi 2 (In-Memory TAR Virtual Host via app.Resource.Bind)
+	if p.Version == 2 && len(p.Files) > 0 {
+		memFS := tarball.NewMemoryFS(p.Files)
+		_ = app.Resource.Bind("app", memFS)
+		entryURL := "http://app/index.html"
+		if cfg.Source != "" && !strings.HasPrefix(cfg.Source, "http") {
+			entryURL = "http://app/" + strings.TrimPrefix(cfg.Source, "/")
+		}
+		view.LoadURL(entryURL)
+		view.ShowWindow()
+		view.OnDestroy(func() {
+			os.Exit(0)
+		})
+		app.KeepRunning()
+		return
+	}
+
+	// 4. Jika payload Versi 1 (JSON tunggal legacy)
 	switch cfg.Mode {
 	case "url":
 		targetURL := strings.TrimSpace(cfg.Source)

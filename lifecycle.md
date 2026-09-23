@@ -133,10 +133,17 @@ TAHAP                   RESPECT MODERN (respect.exe)             RESPECT LITE (r
 
 ### Fase 1: Startup & Trailer Parsing (Sama di Kedua Varian)
 1. Binary membaca dirinya sendiri via `os.Executable()`.
-2. Binary membaca byte paling belakang file (8 byte terakhir) untuk mendapatkan `payloadOffset`.
-3. Memeriksa keberadaan magic header string: `RESPECT_PAYLOAD_V1`.
-   - **Jika Cocok**: Binary tahu bahwa ia adalah **Runner** aplikasi yang telah diekspor. Config JSON di-unmarshal ke struct `payload.Config` dan dieksekusi via `runtime.Run(cfg)`.
-   - **Jika Tidak Ada**: Binary adalah executable master **Builder**. Memeriksa apakah ada flag terminal `--build` (eksekusi CLI) atau tanpa argumen (buka GUI Builder via `builder.Run()`).
+2. Binary membaca byte paling belakang file (16 byte terakhir) untuk memeriksa magic header:
+   - **`RESPECT_PAYLOAD_V2` (Format Baru: In-Memory TAR + Zstandard)**:
+     - Streaming dekompresi ZSTD langsung ke memori.
+     - Unpack TAR in-memory ke `map[string][]byte`.
+     - Konfigurasi `respect.json` diekstrak untuk inisialisasi window.
+     - Masuk ke **Mode Runner In-Memory Virtual Host (`http://app/`)** (0 bytes ke disk, 0 port jaringan).
+   - **`RESPECT_PAYLOAD_V1` (Format Legacy: JSON Tunggal)**:
+     - Unmarshal JSON config langsung dan masuk ke **Mode Runner Legacy**.
+   - **Tanpa Trailer**:
+     - Binary bertindak sebagai executable master **Builder**.
+     - Memeriksa flag CLI `--build` (mode headless/terminal) atau tanpa argumen (buka GUI Builder via `builder.Run()`).
 
 ---
 

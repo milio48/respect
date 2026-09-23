@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -48,8 +49,9 @@ func main() {
 	versionFlag := flag.Bool("version", false, "Tampilkan informasi versi aplikasi")
 	flag.BoolVar(versionFlag, "v", false, "Tampilkan informasi versi aplikasi (shorthand)")
 	buildFlag := flag.Bool("build", false, "Bangun file EXE baru dari konfigurasi")
-	mode := flag.String("mode", "url", "Mode tampilan: url | html | file")
+	mode := flag.String("mode", "url", "Mode tampilan: url | html | file | app")
 	source := flag.String("source", "", "Sumber konten: URL / kode HTML / path file lokal")
+	dirFlag := flag.String("dir", "", "Path direktori frontend web untuk dikemas ke dalam EXE (mode virtual host V2)")
 	out := flag.String("out", "demo.exe", "Nama output file EXE")
 	title := flag.String("title", "respect.exe", "Judul jendela aplikasi")
 	width := flag.Int("width", 800, "Lebar jendela aplikasi")
@@ -66,14 +68,73 @@ func main() {
 	}
 
 	if *buildFlag {
-		if strings.TrimSpace(*source) == "" {
-			fmt.Fprintln(os.Stderr, "error: parameter --source wajib diisi")
-			os.Exit(1)
-		}
-
 		outName := strings.TrimSpace(*out)
 		if !strings.HasSuffix(strings.ToLower(outName), ".exe") {
 			outName += ".exe"
+		}
+
+		// A. Mode Direktori (V2: In-Memory TAR Virtual Host)
+		targetDir := strings.TrimSpace(*dirFlag)
+		if targetDir != "" || *mode == "app" || *mode == "dir" {
+			if targetDir == "" {
+				targetDir = strings.TrimSpace(*source)
+			}
+			if targetDir == "" {
+				fmt.Fprintln(os.Stderr, "error: parameter --dir atau --source direktori wajib diisi untuk mode app/dir")
+				os.Exit(1)
+			}
+
+			files := make(map[string][]byte)
+			err := filepath.Walk(targetDir, func(p string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return err
+				}
+				rel, err := filepath.Rel(targetDir, p)
+				if err != nil {
+					return err
+				}
+				data, err := os.ReadFile(p)
+				if err != nil {
+					return err
+				}
+				files[rel] = data
+				return nil
+			})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "error membaca folder:", err)
+				os.Exit(1)
+			}
+			if len(files) == 0 {
+				fmt.Fprintln(os.Stderr, "error: direktori kosong atau tidak ada file valid")
+				os.Exit(1)
+			}
+
+			cfg := payload.Config{
+				Mode:       "app",
+				Source:     "index.html",
+				Title:      *title,
+				Width:      *width,
+				Height:     *height,
+				IconPath:   *iconPath,
+				OutName:    outName,
+				AppVersion: *appVer,
+				Company:    *company,
+				Copyright:  *copyright,
+			}
+
+			if err := payload.BuildSelfV2(cfg, files); err != nil {
+				fmt.Fprintln(os.Stderr, "build v2 error:", err)
+				os.Exit(1)
+			}
+
+			fmt.Println("OK:", cfg.OutName)
+			return
+		}
+
+		// B. Mode Single File / URL (V1 Legacy)
+		if strings.TrimSpace(*source) == "" {
+			fmt.Fprintln(os.Stderr, "error: parameter --source atau --dir wajib diisi")
+			os.Exit(1)
 		}
 
 		cfg := payload.Config{
@@ -98,9 +159,9 @@ func main() {
 		return
 	}
 
-	// 2. Cek apakah binary ini sendiri memiliki payload trailer (Runtime Mode)
-	if cfg, err := payload.ReadPayload(); err == nil {
-		runtime.Run(cfg)
+	// 2. Cek apakah binary ini sendiri memiliki payload trailer (Runtime Mode V1 atau V2)
+	if p, err := payload.ReadPayload(); err == nil {
+		runtime.Run(p)
 		return
 	}
 

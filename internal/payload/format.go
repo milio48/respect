@@ -1,17 +1,30 @@
 package payload
 
 const (
-	// Magic 16 bytes di ujung file.
-	Magic = "RESPECTv1\x00\x00\x00\x00\x00\x00\x00"
+	// Magic string versi 1 (JSON tunggal lama).
+	MagicV1 = "RESPECTv1\x00\x00\x00\x00\x00\x00\x00"
 
-	// Ukuran magic (16 bytes) + uint64 config_len (8 bytes).
+	// Magic string versi 2 (TAR + Zstandard multi-file).
+	MagicV2 = "RESPECTv2\x00\x00\x00\x00\x00\x00\x00"
+
+	// Alias Magic untuk backward compatibility V1
+	Magic = MagicV1
+
+	// Ukuran magic (16 bytes) + uint64 payload_len (8 bytes).
 	TrailerSize = 16 + 8
 )
 
+// Payload adalah data lengkap yang diekstrak dari trailer executable.
+type Payload struct {
+	Version int               `json:"version"` // 1 atau 2
+	Config  Config            `json:"config"`
+	Files   map[string][]byte `json:"-"` // Berisi file-file in-memory (hanya terisi jika Version == 2)
+}
+
 // Config adalah metadata yang di-append ke EXE.
 type Config struct {
-	Mode       string `json:"mode"`   // "url" | "html" | "file"
-	Source     string `json:"source"` // URL / HTML string / path file
+	Mode       string `json:"mode"`   // "url" | "html" | "file" | "app"
+	Source     string `json:"source"` // URL / HTML string / path file / entry point
 	Title      string `json:"title,omitempty"`
 	Width      int    `json:"width,omitempty"`  // default 800
 	Height     int    `json:"height,omitempty"` // default 600

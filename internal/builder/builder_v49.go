@@ -5,12 +5,10 @@ package builder
 import (
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	blink "github.com/epkgs/blink"
 	"respect-app/assets"
@@ -46,17 +44,7 @@ func Run() {
 			return errJSON(err)
 		}
 
-		if strings.TrimSpace(cfg.Source) == "" {
-			return errJSON(errors.New("sumber konten (source) wajib diisi"))
-		}
-		if strings.TrimSpace(cfg.OutName) == "" {
-			cfg.OutName = "demo.exe"
-		}
-		if !strings.HasSuffix(strings.ToLower(cfg.OutName), ".exe") {
-			cfg.OutName += ".exe"
-		}
-
-		if err := payload.BuildSelf(cfg); err != nil {
+		if err := buildAppFromConfig(cfg); err != nil {
 			return errJSON(err)
 		}
 
