@@ -1,7 +1,7 @@
 /**
  * Respect Browser Stress Testing Suite - Master App Controller
- * Mengintegrasikan seluruh modul: Telemetry HUD, API Dump explorer,
- * Capability Matrix, Media Lab, Stress Benchmarks, dan Ekspor Laporan.
+ * Mengintegrasikan Telemetry HUD, API Dump explorer dengan deep inspection,
+ * Capability Matrix, Media Lab, Stress Benchmarks, Live JS REPL, dan Bulletproof Report Modal.
  */
 
 (function () {
@@ -14,12 +14,19 @@
     webgl: {},
     fingerprints: {},
     capabilities: {},
-    apiDump: {},
+    apiDump: {
+      counts: {},
+      summaryApis: []
+    },
     benchmarks: {}
   };
 
+  // History for interactive REPL
+  var replHistory = [];
+  var replHistoryIndex = -1;
+
   // =========================================================================
-  // LOGGING SYSTEM
+  // SMART LOGGING & GLOBAL ERROR HANDLER
   // =========================================================================
   function log(msg, type) {
     type = type || 'info';
@@ -36,7 +43,7 @@
 
     var text = document.createElement('span');
     text.className = 'msg';
-    text.textContent = (type === 'ok' ? '✓ ' : type === 'fail' ? '✗ ' : 'ℹ ') + msg;
+    text.textContent = (type === 'ok' ? '✓ ' : type === 'fail' ? '✗ ' : type === 'warn' ? '⚠ ' : 'ℹ ') + msg;
 
     line.appendChild(time);
     line.appendChild(text);
@@ -48,6 +55,82 @@
     var terminal = document.getElementById('terminalBody');
     if (terminal) terminal.innerHTML = '';
   };
+
+  // Global uncaught error trapping for smart debugging
+  window.onerror = function (msg, url, lineNo, columnNo, error) {
+    var filename = url ? url.substring(url.lastIndexOf('/') + 1) : 'script';
+    var detail = msg + ' (' + filename + ':' + lineNo + (columnNo ? ':' + columnNo : '') + ')';
+    log('UNCAUGHT EXCEPTION: ' + detail, 'fail');
+    return false;
+  };
+
+  window.onunhandledrejection = function (event) {
+    var reason = event.reason ? (event.reason.message || String(event.reason)) : 'Unknown rejection';
+    log('UNHANDLED PROMISE REJECTION: ' + reason, 'fail');
+  };
+
+  // =========================================================================
+  // INTERACTIVE JAVASCRIPT REPL CONSOLE
+  // =========================================================================
+  function initRepl() {
+    var input = document.getElementById('replInput');
+    var btn = document.getElementById('btnReplRun');
+    if (!input) return;
+
+    function executeRepl() {
+      var code = input.value.trim();
+      if (!code) return;
+
+      replHistory.push(code);
+      replHistoryIndex = replHistory.length;
+      input.value = '';
+
+      log('> ' + code, 'info');
+
+      try {
+        /* eslint-disable no-eval */
+        var result = window.eval(code);
+        var resultStr = '';
+        if (result === undefined) resultStr = 'undefined';
+        else if (result === null) resultStr = 'null';
+        else if (typeof result === 'object') {
+          try {
+            resultStr = JSON.stringify(result, null, 2);
+          } catch (e) {
+            resultStr = String(result);
+          }
+        } else {
+          resultStr = String(result);
+        }
+        log('=> ' + resultStr, 'ok');
+      } catch (err) {
+        log('ERROR: ' + (err.stack || err.message || String(err)), 'fail');
+      }
+    }
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        executeRepl();
+      } else if (e.key === 'ArrowUp') {
+        if (replHistory.length > 0 && replHistoryIndex > 0) {
+          replHistoryIndex--;
+          input.value = replHistory[replHistoryIndex];
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (replHistoryIndex < replHistory.length - 1) {
+          replHistoryIndex++;
+          input.value = replHistory[replHistoryIndex];
+        } else {
+          replHistoryIndex = replHistory.length;
+          input.value = '';
+        }
+      }
+    });
+
+    if (btn) {
+      btn.addEventListener('click', executeRepl);
+    }
+  }
 
   // =========================================================================
   // TAB NAVIGATION
@@ -67,7 +150,7 @@
         var targetPane = document.getElementById(targetId);
         if (targetPane) targetPane.classList.add('active');
 
-        // Lazy init when switching
+        // Lazy particle init
         if (targetId === 'tab-stress') {
           var canvas = document.getElementById('particleCanvas');
           if (canvas) {
@@ -102,6 +185,28 @@
     var platformEl = document.getElementById('hudPlatform');
     if (platformEl) platformEl.textContent = env.platform;
 
+    // Environment card values
+    var envEngineName = document.getElementById('envEngineName');
+    if (envEngineName) envEngineName.textContent = env.engineFlavor;
+
+    var envUserAgent = document.getElementById('envUserAgent');
+    if (envUserAgent) envUserAgent.textContent = env.userAgent;
+
+    var envIpcStatus = document.getElementById('envIpcStatus');
+    if (envIpcStatus) {
+      envIpcStatus.textContent = env.respectHooks.mbQuery ? 'Chromium 132 (mbQuery Native)' :
+                                env.respectHooks.ipc ? 'Miniblink 49 (window.ipc Native)' : 'Standard Web Context';
+    }
+
+    var envSecureContext = document.getElementById('envSecureContext');
+    if (envSecureContext) envSecureContext.textContent = env.isSecureContext ? 'YES (Secure)' : 'NO (Local/HTTP)';
+
+    var envLanguage = document.getElementById('envLanguage');
+    if (envLanguage) envLanguage.textContent = env.language + ' (' + env.languages.join(', ') + ')';
+
+    var envOnline = document.getElementById('envOnline');
+    if (envOnline) envOnline.textContent = env.onLine ? 'Connected (Online)' : 'Offline';
+
     var coresEl = document.getElementById('hudCores');
     var ramEl = document.getElementById('hudRam');
 
@@ -114,8 +219,7 @@
       if (resEl) resEl.textContent = specs.screenWidth + 'x' + specs.screenHeight + ' (@' + specs.pixelRatio + 'x)';
     });
 
-    log('Engine terdeteksi: ' + env.engineFlavor, 'ok');
-    log('Platform OS: ' + env.platform + ' | User-Agent: ' + env.userAgent.substring(0, 65) + '...', 'info');
+    log('Engine: ' + env.engineFlavor + ' | Origin: ' + (window.location.origin || 'N/A'), 'ok');
   }
 
   // =========================================================================
@@ -171,11 +275,11 @@
       });
     }
 
-    log('Capability Test selesai: ' + cap.passed + ' lulus dari ' + cap.total + ' (' + cap.percentage + '%)', 'ok');
+    log('Capability Test selesai: ' + cap.passed + '/' + cap.total + ' (' + cap.percentage + '%)', 'ok');
   }
 
   // =========================================================================
-  // API DUMP POPULATION
+  // API DUMP POPULATION WITH DEEP INSPECTION & SAMPLES
   // =========================================================================
   function populateApiDump(category, query) {
     var filtered = ApiDumpEngine.filterApis(query, category);
@@ -183,17 +287,26 @@
     if (!tbody) return;
 
     tbody.innerHTML = '';
-    var maxDisplay = 250; // Cap to prevent table rendering lag
+    var maxDisplay = 300; // Cap to prevent table rendering lag
     var displayItems = filtered.slice(0, maxDisplay);
 
     displayItems.forEach(function (api) {
       var tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
 
       var tdName = document.createElement('td');
-      tdName.innerHTML = '<code>' + api.name + '</code>' + (api.isRespect ? ' <span class="status-badge info">Respect Hook</span>' : '');
+      tdName.innerHTML = '<code>' + api.name + '</code>' +
+        (api.isRespect ? ' <span class="status-badge info">Respect Hook</span>' : '') +
+        (api.descriptor ? ' <small style="color:var(--text-dim); margin-left:6px;">[' + api.descriptor + ']</small>' : '');
 
       var tdType = document.createElement('td');
       tdType.innerHTML = '<span class="status-badge ' + (api.isConstructor ? 'pass' : api.isCallable ? 'info' : 'warn') + '">' + api.summary + '</span>';
+
+      var tdVal = document.createElement('td');
+      tdVal.style.fontFamily = 'var(--font-mono)';
+      tdVal.style.fontSize = '11px';
+      tdVal.style.color = '#38bdf8';
+      tdVal.textContent = api.sampleValue;
 
       var tdOrigin = document.createElement('td');
       tdOrigin.className = 'muted';
@@ -201,7 +314,40 @@
 
       tr.appendChild(tdName);
       tr.appendChild(tdType);
+      tr.appendChild(tdVal);
       tr.appendChild(tdOrigin);
+
+      // Expand on click to show deep properties
+      tr.addEventListener('click', function () {
+        var existingBox = tr.nextElementSibling;
+        if (existingBox && existingBox.classList.contains('expanded-api-row')) {
+          existingBox.remove();
+          return;
+        }
+
+        var expandTr = document.createElement('tr');
+        expandTr.className = 'expanded-api-row';
+        var expandTd = document.createElement('td');
+        expandTd.colSpan = 4;
+
+        var box = document.createElement('div');
+        box.className = 'api-detail-box';
+
+        var content = '<strong>PROPERTI:</strong> ' + api.name + '\n' +
+                      '<strong>TIPE:</strong> ' + api.type + ' | ' + api.summary + '\n' +
+                      '<strong>DESCRIPTOR:</strong> ' + (api.descriptor || 'N/A') + '\n' +
+                      '<strong>NILAI SAAT INI:</strong> ' + api.sampleValue;
+
+        if (api.subProperties && api.subProperties.length > 0) {
+          content += '\n<strong>SUB-PROPERTIES / KEYS:</strong> ' + api.subProperties.join(', ');
+        }
+
+        box.innerHTML = content.replace(/\n/g, '<br>');
+        expandTd.appendChild(box);
+        expandTr.appendChild(expandTd);
+        tr.parentNode.insertBefore(expandTr, tr.nextSibling);
+      });
+
       tbody.appendChild(tr);
     });
 
@@ -213,10 +359,27 @@
 
   function initApiDump() {
     var dump = ApiDumpEngine.dumpGlobalApis();
-    auditReport.apiDump = dump;
+    auditReport.apiDump.counts = dump.counts;
+
+    // Only store safe summary in auditReport to prevent circular JSON crash
+    auditReport.apiDump.summaryApis = dump.apis.map(function (a) {
+      return {
+        name: a.name,
+        type: a.type,
+        summary: a.summary,
+        value: a.sampleValue,
+        origin: a.origin
+      };
+    });
 
     var totalApisVal = document.getElementById('totalApisVal');
     if (totalApisVal) totalApisVal.textContent = dump.counts.total;
+
+    var totalApisCountTile = document.getElementById('totalApisCountTile');
+    if (totalApisCountTile) totalApisCountTile.textContent = dump.counts.total;
+
+    var totalApisBadge = document.getElementById('totalApisBadge');
+    if (totalApisBadge) totalApisBadge.textContent = dump.counts.total;
 
     var constructorsVal = document.getElementById('totalConstructorsVal');
     if (constructorsVal) constructorsVal.textContent = dump.counts.constructors;
@@ -243,6 +406,41 @@
         populateApiDump(filterSelect.value, searchInput ? searchInput.value : '');
       });
     }
+
+    // Populate Key Essential Namespaces in Dashboard
+    populateEssentialNamespaces();
+  }
+
+  function populateEssentialNamespaces() {
+    var container = document.getElementById('essentialNamespacesContainer');
+    if (!container) return;
+
+    var targets = ['location', 'navigator', 'screen', 'document'];
+    container.innerHTML = '';
+
+    targets.forEach(function (ns) {
+      var details = ApiDumpEngine.getNamespaceDetails(ns);
+      if (!details) return;
+
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.padding = '12px';
+
+      var h = document.createElement('h4');
+      h.style.color = 'var(--accent-cyan)';
+      h.style.marginBottom = '6px';
+      h.style.fontSize = '13px';
+      h.textContent = 'window.' + ns;
+
+      var pre = document.createElement('pre');
+      pre.className = 'code-block';
+      pre.style.maxHeight = '140px';
+      pre.textContent = JSON.stringify(details, null, 2);
+
+      card.appendChild(h);
+      card.appendChild(pre);
+      container.appendChild(card);
+    });
   }
 
   // =========================================================================
@@ -255,13 +453,22 @@
 
     var gpuVendorEl = document.getElementById('gpuVendor');
     var gpuRendererEl = document.getElementById('gpuRenderer');
+    var gpuRendererDetailed = document.getElementById('gpuRendererDetailed');
     var glVersionEl = document.getElementById('glVersion');
     var glExtsEl = document.getElementById('glExtensionsCount');
+    var glMaxTexture = document.getElementById('glMaxTexture');
+    var glShadingLang = document.getElementById('glShadingLang');
 
-    if (gpuVendorEl) gpuVendorEl.textContent = webgl.unmaskedVendor || webgl.vendor || 'N/A';
-    if (gpuRendererEl) gpuRendererEl.textContent = webgl.unmaskedRenderer || webgl.renderer || 'N/A';
+    var rendererStr = webgl.unmaskedRenderer || webgl.renderer || 'N/A';
+    var vendorStr = webgl.unmaskedVendor || webgl.vendor || 'N/A';
+
+    if (gpuVendorEl) gpuVendorEl.textContent = vendorStr;
+    if (gpuRendererEl) gpuRendererEl.textContent = rendererStr;
+    if (gpuRendererDetailed) gpuRendererDetailed.textContent = rendererStr + ' (' + vendorStr + ')';
     if (glVersionEl) glVersionEl.textContent = webgl.version || 'Unsupported';
     if (glExtsEl) glExtsEl.textContent = webgl.extensionsCount + ' Extensions';
+    if (glMaxTexture) glMaxTexture.textContent = webgl.maxTextureSize ? (webgl.maxTextureSize + ' px') : 'N/A';
+    if (glShadingLang) glShadingLang.textContent = webgl.shadingLanguage || 'N/A';
 
     // 2. Canvas
     var canvasFp = FingerprintEngine.getCanvasFingerprint();
@@ -349,9 +556,10 @@
 
     if (startCamBtn) {
       startCamBtn.addEventListener('click', function () {
+        log('Meminta izin akses kamera video...', 'info');
         MediaLabEngine.startCamera(camVideo, camStatus, function (ok) {
-          if (ok) log('Kamera video berhasil dimulai.', 'ok');
-          else log('Gagal membuka kamera video.', 'fail');
+          if (ok) log('Kamera video aktif (1280x720).', 'ok');
+          else log('Akses kamera gagal / ditolak.', 'fail');
         });
       });
     }
@@ -359,7 +567,7 @@
     if (stopCamBtn) {
       stopCamBtn.addEventListener('click', function () {
         MediaLabEngine.stopCamera(camVideo, camStatus);
-        log('Kamera video dimatikan.', 'info');
+        log('Kamera dimatikan.', 'info');
       });
     }
 
@@ -379,9 +587,10 @@
 
     if (startMicBtn) {
       startMicBtn.addEventListener('click', function () {
+        log('Meminta izin akses mikrofon audio...', 'info');
         MediaLabEngine.startMicrophone(micCanvas, micMeter, micStatus, function (ok) {
-          if (ok) log('Audio capture aktif. Oscilloscope berjalan pada 60 FPS.', 'ok');
-          else log('Gagal mengakses mikrofon.', 'fail');
+          if (ok) log('Mikrofon aktif. Oscilloscope 60 FPS berjalan.', 'ok');
+          else log('Akses mikrofon gagal / ditolak.', 'fail');
         });
       });
     }
@@ -389,7 +598,7 @@
     if (stopMicBtn) {
       stopMicBtn.addEventListener('click', function () {
         MediaLabEngine.stopMicrophone(micStatus);
-        log('Audio capture dimatikan.', 'info');
+        log('Mikrofon dimatikan.', 'info');
       });
     }
 
@@ -414,14 +623,14 @@
         var hz = parseInt(synthFreqInput ? synthFreqInput.value : 440, 10);
         var wave = synthWaveSelect ? synthWaveSelect.value : 'sine';
         MediaLabEngine.startSynth(hz, wave, 0.2, synthStatus);
-        log('Web Audio Synthesizer membunyikan frekuensi ' + hz + ' Hz (' + wave + ').', 'ok');
+        log('Web Audio Synthesizer: ' + hz + ' Hz (' + wave + ').', 'ok');
       });
     }
 
     if (stopSynthBtn) {
       stopSynthBtn.addEventListener('click', function () {
         MediaLabEngine.stopSynth(synthStatus);
-        log('Web Audio Synthesizer dihentikan.', 'info');
+        log('Synthesizer dimatikan.', 'info');
       });
     }
 
@@ -439,7 +648,7 @@
     if (speakBtn) {
       speakBtn.addEventListener('click', function () {
         MediaLabEngine.speakText(ttsText ? ttsText.value : '', 1.0, 1.0, ttsStatus);
-        log('Speech Synthesis mengucapkan teks: "' + (ttsText ? ttsText.value : '') + '"', 'info');
+        log('Speech Synthesis mengucapkan teks.', 'info');
       });
     }
 
@@ -462,7 +671,7 @@
 
     if (btnDomStress) {
       btnDomStress.addEventListener('click', function () {
-        log('Memulai DOM Thrashing Stress Test (5,000 Nodes)...', 'info');
+        log('Memulai DOM Thrashing (5,000 Nodes)...', 'info');
         btnDomStress.disabled = true;
 
         setTimeout(function () {
@@ -472,7 +681,7 @@
             domResult.textContent = JSON.stringify(res, null, 2);
           }
           btnDomStress.disabled = false;
-          log('DOM Stress selesai: ' + res.insertTimeMs + 'ms insert, ' + res.opsPerSec + ' ops/sec', 'ok');
+          log('DOM Stress selesai: ' + res.insertTimeMs + 'ms insert (' + res.opsPerSec + ' ops/sec)', 'ok');
         }, 50);
       });
     }
@@ -486,7 +695,7 @@
         var count = parseInt(particleSlider.value, 10);
         if (particleCountLabel) particleCountLabel.textContent = count + ' Particles';
         StressBenchmarkEngine.setParticleCount(count);
-        log('Jumlah partikel disetel ke: ' + count, 'info');
+        log('Jumlah partikel disetel: ' + count, 'info');
       });
     }
 
@@ -497,14 +706,14 @@
 
     if (btnMainCompute) {
       btnMainCompute.addEventListener('click', function () {
-        log('Menjalankan Prime Sieve di Main Thread (Sync)...', 'warn');
+        log('Menjalankan Prime Sieve di Main Thread...', 'warn');
         btnMainCompute.disabled = true;
         setTimeout(function () {
           StressBenchmarkEngine.runComputeBenchmark(1500000, false, function (res) {
             auditReport.benchmarks.computeMain = res;
             if (computeResult) computeResult.textContent = JSON.stringify(res, null, 2);
             btnMainCompute.disabled = false;
-            log('Main Thread Compute selesai dalam ' + res.elapsedMs + ' ms.', 'ok');
+            log('Main Thread selesai: ' + res.elapsedMs + ' ms.', 'ok');
           });
         }, 30);
       });
@@ -518,7 +727,7 @@
           auditReport.benchmarks.computeWorker = res;
           if (computeResult) computeResult.textContent = JSON.stringify(res, null, 2);
           btnWorkerCompute.disabled = false;
-          log('Worker Thread Compute selesai dalam ' + res.elapsedMs + ' ms (Latency: ' + res.totalLatencyMs + ' ms)', 'ok');
+          log('Worker Thread selesai: ' + res.elapsedMs + ' ms (Latency: ' + res.totalLatencyMs + ' ms)', 'ok');
         });
       });
     }
@@ -536,7 +745,7 @@
           auditReport.benchmarks.memory = res;
           if (memResult) memResult.textContent = JSON.stringify(res, null, 2);
           btnMemStress.disabled = false;
-          log('Memory Stress selesai: ' + res.allocatedMb + ' MB dialokasikan (' + res.allocTimeMs + ' ms). Kecepatan: ' + res.throughputMbSec + ' MB/s', 'ok');
+          log('Memory Stress: ' + res.allocatedMb + ' MB dialokasikan (' + res.allocTimeMs + ' ms, ' + res.throughputMbSec + ' MB/s)', 'ok');
         }, 50);
       });
     }
@@ -547,56 +756,167 @@
 
     if (btnStorageStress) {
       btnStorageStress.addEventListener('click', function () {
-        log('Menjalankan Storage I/O Stress (1,000 bulk records)...', 'info');
+        log('Menjalankan Storage I/O (1,000 bulk records)...', 'info');
         btnStorageStress.disabled = true;
         setTimeout(function () {
           var res = StressBenchmarkEngine.runStorageIoStress(1000);
           auditReport.benchmarks.storage = res;
           if (storageResult) storageResult.textContent = JSON.stringify(res, null, 2);
           btnStorageStress.disabled = false;
-          log('Storage I/O selesai: ' + res.writeOpsPerSec + ' write ops/sec, ' + res.readOpsPerSec + ' read ops/sec.', 'ok');
+          log('Storage I/O: ' + res.writeOpsPerSec + ' write ops/sec, ' + res.readOpsPerSec + ' read ops/sec.', 'ok');
         }, 50);
       });
     }
   }
 
   // =========================================================================
-  // REPORT EXPORT & CLIPBOARD
+  // BULLETPROOF REPORT MODAL & CLIPBOARD ENGINE
   // =========================================================================
-  window.downloadAuditJson = function () {
-    var dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(auditReport, null, 2));
-    var dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', 'respect-browser-audit-' + Date.now() + '.json');
-    document.body.appendChild(dlAnchor);
-    dlAnchor.click();
-    document.body.removeChild(dlAnchor);
-    log('Audit report berhasil diunduh dalam format JSON.', 'ok');
-  };
+  var currentReportFormat = 'json';
 
-  window.copyAuditMarkdown = function () {
+  function generateMarkdownText() {
     var md = '# ⚡ Respect Browser Capability & Stress Audit Report\n\n' +
       '- **Waktu Audit**: `' + auditReport.timestamp + '`\n' +
       '- **Engine Flavor**: `' + (auditReport.environment.engineFlavor || 'Unknown') + '`\n' +
       '- **Platform**: `' + (auditReport.environment.platform || 'Unknown') + '`\n' +
       '- **User-Agent**: `' + (auditReport.environment.userAgent || 'Unknown') + '`\n' +
+      '- **Origin**: `' + (window.location.origin || 'N/A') + '`\n' +
       '- **Hardware**: `' + (auditReport.hardware.cpuCores || 'N/A') + ' Cores`, `' + (auditReport.hardware.deviceMemoryGB || 'N/A') + ' RAM`\n' +
+      '- **Display**: `' + (auditReport.hardware.screenWidth || 0) + 'x' + (auditReport.hardware.screenHeight || 0) + ' (@' + (auditReport.hardware.pixelRatio || 1) + 'x)`\n' +
       '- **GPU Unmasked**: `' + (auditReport.webgl.unmaskedRenderer || 'N/A') + '` (' + (auditReport.webgl.unmaskedVendor || 'N/A') + ')\n' +
       '- **Canvas Hash**: `' + (auditReport.fingerprints.canvas ? auditReport.fingerprints.canvas.hash : 'N/A') + '`\n' +
       '- **Audio Hash**: `' + (auditReport.fingerprints.audio ? auditReport.fingerprints.audio.hash : 'N/A') + '`\n' +
       '- **Capability Score**: **' + (auditReport.capabilities.percentage || '0') + '%** (' + (auditReport.capabilities.passed || 0) + ' / ' + (auditReport.capabilities.total || 0) + ')\n' +
       '- **Total Global APIs**: **' + (auditReport.apiDump.counts ? auditReport.apiDump.counts.total : 'N/A') + '**\n\n' +
       '---\n*Generated by Respect Browser Stress Testing Suite*';
+    return md;
+  }
 
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(md).then(function () {
-        alert('Ringkasan Markdown berhasil disalin ke clipboard!');
-        log('Markdown report disalin ke clipboard.', 'ok');
-      }).catch(function (e) {
-        prompt('Salin teks markdown berikut:', md);
-      });
+  function generateJsonText() {
+    return JSON.stringify(auditReport, null, 2);
+  }
+
+  window.openReportModal = function (format) {
+    currentReportFormat = format || 'json';
+    var modal = document.getElementById('reportModal');
+    var area = document.getElementById('reportContentArea');
+    var title = document.getElementById('modalReportTitle');
+    var tabJson = document.getElementById('modalTabJson');
+    var tabMd = document.getElementById('modalTabMd');
+
+    if (!modal || !area) return;
+
+    if (currentReportFormat === 'markdown') {
+      area.value = generateMarkdownText();
+      if (title) title.textContent = '📋 Ringkasan Laporan Markdown';
+      if (tabMd) tabMd.className = 'btn btn-sm btn-primary';
+      if (tabJson) tabJson.className = 'btn btn-sm';
     } else {
-      prompt('Salin teks markdown berikut:', md);
+      area.value = generateJsonText();
+      if (title) title.textContent = '💾 Laporan Audit Lengkap (JSON)';
+      if (tabJson) tabJson.className = 'btn btn-sm btn-primary';
+      if (tabMd) tabMd.className = 'btn btn-sm';
+    }
+
+    modal.classList.add('open');
+    log('Membuka jendela inspektur laporan (' + currentReportFormat.toUpperCase() + ').', 'info');
+  };
+
+  window.closeReportModal = function () {
+    var modal = document.getElementById('reportModal');
+    if (modal) modal.classList.remove('open');
+  };
+
+  window.switchReportFormat = function (format) {
+    window.openReportModal(format);
+  };
+
+  window.copyReportFromModal = function () {
+    var area = document.getElementById('reportContentArea');
+    var copyBtn = document.getElementById('btnModalCopy');
+    if (!area) return;
+
+    var text = area.value;
+    var success = false;
+
+    // Strategy 1: Async Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        indicateCopySuccess(copyBtn);
+      }).catch(function () {
+        // Fallback to execCommand
+        fallbackExecCopy(area, copyBtn);
+      });
+      return;
+    }
+
+    // Strategy 2: execCommand fallback
+    fallbackExecCopy(area, copyBtn);
+  };
+
+  function fallbackExecCopy(textareaEl, btnEl) {
+    try {
+      textareaEl.focus();
+      textareaEl.select();
+      var ok = document.execCommand('copy');
+      if (ok) {
+        indicateCopySuccess(btnEl);
+      } else {
+        alert('Teks telah dipilih. Tekan Ctrl+C untuk menyalin.');
+      }
+    } catch (e) {
+      alert('Teks telah dipilih. Tekan Ctrl+C untuk menyalin.');
+    }
+  }
+
+  function indicateCopySuccess(btnEl) {
+    log('Laporan berhasil disalin ke clipboard!', 'ok');
+    if (btnEl) {
+      var original = btnEl.innerHTML;
+      btnEl.innerHTML = '✓ Berhasil Disalin!';
+      btnEl.classList.add('btn-success');
+      setTimeout(function () {
+        btnEl.innerHTML = original;
+        btnEl.classList.remove('btn-success');
+      }, 2000);
+    }
+  }
+
+  window.downloadReportFile = function () {
+    var area = document.getElementById('reportContentArea');
+    if (!area) return;
+
+    var content = area.value;
+    var isMd = currentReportFormat === 'markdown';
+    var mime = isMd ? 'text/markdown;charset=utf-8' : 'application/json;charset=utf-8';
+    var filename = isMd ? ('respect-report-' + Date.now() + '.md') : ('respect-audit-' + Date.now() + '.json');
+
+    try {
+      var blob = new Blob([content], { type: mime });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+      log('File laporan berhasil diunduh: ' + filename, 'ok');
+    } catch (e) {
+      // Data URI fallback
+      try {
+        var dataUri = 'data:' + mime + ',' + encodeURIComponent(content);
+        var a2 = document.createElement('a');
+        a2.href = dataUri;
+        a2.download = filename;
+        document.body.appendChild(a2);
+        a2.click();
+        document.body.removeChild(a2);
+        log('File laporan diunduh via data URI fallback.', 'ok');
+      } catch (err2) {
+        log('Browser memblokir unduhan file langsung. Silakan gunakan tombol "Salin ke Clipboard" pada modal.', 'warn');
+        alert('Browser Anda memblokir unduhan file langsung. Silakan gunakan tombol "Salin ke Clipboard" di modal untuk menyalin data!');
+      }
     }
   };
 
@@ -612,7 +932,8 @@
     initFingerprints();
     initMediaLab();
     initStressLab();
-    log('Seluruh subsistem berhasil dimuat dan siap untuk pengujian beban.', 'ok');
+    initRepl();
+    log('Seluruh subsistem siap. Buka tab atau ketik perintah di konsol REPL untuk pengujian interaktif.', 'ok');
   });
 
 })();

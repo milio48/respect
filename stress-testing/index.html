@@ -39,8 +39,8 @@
     </div>
 
     <div class="hud-actions">
-      <button class="btn btn-sm btn-primary" onclick="downloadAuditJson()">⬇ Export JSON</button>
-      <button class="btn btn-sm" onclick="copyAuditMarkdown()">📋 Copy Markdown</button>
+      <button class="btn btn-sm btn-primary" onclick="openReportModal('json')">💾 Laporan JSON</button>
+      <button class="btn btn-sm" onclick="openReportModal('markdown')">📋 Ringkasan MD</button>
     </div>
   </header>
 
@@ -49,7 +49,7 @@
        ======================================================================= -->
   <nav class="nav-tabs">
     <button class="tab-btn active" data-tab="tab-dashboard">
-      <span>📊 Dashboard & Skor</span>
+      <span>📊 Dashboard & Panduan</span>
     </button>
     <button class="tab-btn" data-tab="tab-apidump">
       <span>🧬 Dump Window JS APIs</span>
@@ -76,6 +76,31 @@
 
     <!-- 1. DASHBOARD & QUICK SUMMARY TAB -->
     <div id="tab-dashboard" class="tab-pane active">
+
+      <!-- PANDUAN PENGUJIAN & STATUS TRIGGER -->
+      <div class="guide-banner">
+        <h4>📖 Panduan Evaluasi & Status Pengujian Engine</h4>
+        <p style="margin-bottom: 8px; color: #cbd5e1;">
+          Sistem pengujian Respect Browser terbagi menjadi 2 jenis pengujian:
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+          <span class="badge-auto">⚡ OTOMATIS: 120+ Web Standards Matrix</span>
+          <span class="badge-auto">⚡ OTOMATIS: Unmasked GPU & Hardware Probe</span>
+          <span class="badge-auto">⚡ OTOMATIS: Dump 1000+ Window & Prototype APIs</span>
+          <span class="badge-auto">⚡ OTOMATIS: Canvas & Audio Fingerprint Hashes</span>
+          <span class="badge-auto">⚡ OTOMATIS: 50+ Windows Installed Fonts</span>
+          <span class="badge-interactive">👆 KLIK USER: Buka Kamera & Snapshot Filter</span>
+          <span class="badge-interactive">👆 KLIK USER: Buka Mic & Oscilloscope FFT</span>
+          <span class="badge-interactive">👆 KLIK USER: Bunyikan Web Audio Synthesizer</span>
+          <span class="badge-interactive">👆 KLIK USER: DOM Thrashing (5,000 Nodes)</span>
+          <span class="badge-interactive">👆 KLIK USER: Alokasi 200 MB RAM Buffer</span>
+          <span class="badge-interactive">👆 KLIK USER: Background Web Worker Benchmark</span>
+        </div>
+        <p class="muted" style="font-size: 11px;">
+          *Catatan Keamanan: Kamera, Mikrofon, dan Web Audio sengaja memerlukan interaksi (klik) pengguna karena kebijakan autoplay & permission sandbox browser Windows.
+        </p>
+      </div>
+
       <div class="grid-4">
         <div class="card stat-tile">
           <span class="stat-label">Web Standards Score</span>
@@ -127,7 +152,7 @@
             <h3>⚡ Quick Stress Rig Status</h3>
           </div>
           <p class="muted" style="margin-bottom: 12px; font-size: 12px;">
-            Suite ini dirancang khusus untuk menguji batas ketahanan render, performa JavaScript VM, memory leak, dan kelengkapan API dari engine browser desktop Respect.
+            Suite ini menguji batas ketahanan render, performa JavaScript VM, alokasi memori, dan kelengkapan API dari engine browser desktop Respect.
           </p>
           <div class="table-wrapper">
             <table class="data-table">
@@ -135,17 +160,31 @@
                 <tr><th>Subsystem Pengujian</th><th>Target Uji</th><th>Kesiapan</th></tr>
               </thead>
               <tbody>
-                <tr><td><strong>DOM Thrashing</strong></td><td>5,000 - 20,000 Nodes</td><td><span class="status-badge pass">READY</span></td></tr>
-                <tr><td><strong>Canvas 2D Physics</strong></td><td>20,000 Particles @ 60 FPS</td><td><span class="status-badge pass">READY</span></td></tr>
-                <tr><td><strong>Web Worker Threading</strong></td><td>Prime Sieve & Matrix 250x250</td><td><span class="status-badge pass">READY</span></td></tr>
-                <tr><td><strong>Memory Buffer Chunking</strong></td><td>200 MB TypedArray Blocks</td><td><span class="status-badge pass">READY</span></td></tr>
-                <tr><td><strong>Audio Oscilloscope</strong></td><td>Real-time FFT 1024 Sampling</td><td><span class="status-badge pass">READY</span></td></tr>
-                <tr><td><strong>Camera & Media Stream</strong></td><td>Zero-file Synthetic Canvas Video</td><td><span class="status-badge pass">READY</span></td></tr>
+                <tr><td><strong>DOM Thrashing</strong></td><td>5,000 - 20,000 Nodes</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Canvas 2D Physics</strong></td><td>20,000 Particles @ 60 FPS</td><td><span class="status-badge pass">LIVE 60 FPS</span></td></tr>
+                <tr><td><strong>Web Worker Threading</strong></td><td>Prime Sieve & Matrix 250x250</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Memory Buffer Chunking</strong></td><td>200 MB TypedArray Blocks</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Audio Oscilloscope</strong></td><td>Real-time FFT 1024 Sampling</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Camera & Media Stream</strong></td><td>Zero-file Synthetic Canvas Video</td><td><span class="status-badge pass">AUTONOMOUS</span></td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      <!-- Essential Global Namespaces Evaluated -->
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+          <h3>🔍 Nilai Evaluasi Nyata Objek Global (window.location, navigator, screen, document)</h3>
+        </div>
+        <p class="muted" style="font-size: 12px; margin-bottom: 12px;">
+          Nilai nyata yang sedang aktif di memori runtime browser, termasuk <code>location.origin</code>, <code>hardwareConcurrency</code>, dan mode rendering:
+        </p>
+        <div class="grid-2" id="essentialNamespacesContainer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
     </div>
 
     <!-- 2. DUMP WINDOW JS APIS TAB -->
@@ -175,7 +214,7 @@
 
       <div class="card">
         <div class="card-header">
-          <h3>🧬 Window & Global Scope Property Explorer</h3>
+          <h3>🧬 Window & Global Scope Property Explorer (Klik Baris untuk Detail Mendalam)</h3>
           <div class="actions">
             <select id="apiFilterSelect" class="btn btn-sm">
               <option value="all">Semua Tipe API</option>
@@ -189,7 +228,7 @@
         </div>
 
         <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: center;">
-          <input type="text" id="apiSearchInput" class="search-input" placeholder="Ketik untuk mencari nama API (contoh: crypto, Audio, Worker, mbQuery, matchMedia)...">
+          <input type="text" id="apiSearchInput" class="search-input" placeholder="Cari nama atau nilai API (contoh: origin, crypto, Worker, mbQuery, matchMedia)...">
           <span id="apiFilteredCount" class="muted" style="font-size: 11px; white-space: nowrap;">Memuat...</span>
         </div>
 
@@ -197,9 +236,10 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 40%;">Nama Properti / API</th>
-                <th style="width: 30%;">Klasifikasi & Tipe</th>
-                <th style="width: 30%;">Asal Objek (Origin)</th>
+                <th style="width: 25%;">Nama Properti / API</th>
+                <th style="width: 22%;">Klasifikasi & Tipe</th>
+                <th style="width: 38%;">Nilai Saat Ini (Current Value)</th>
+                <th style="width: 15%;">Asal Objek</th>
               </tr>
             </thead>
             <tbody id="apiDumpTableBody">
@@ -333,7 +373,7 @@
         <!-- Camera Video Feed & Snapshot -->
         <div class="card">
           <div class="card-header">
-            <h3>📷 Live Camera & Image Filters</h3>
+            <h3>📷 Live Camera & Image Filters <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <div class="actions">
               <button class="btn btn-sm btn-success" id="btnStartCam">Buka Kamera</button>
               <button class="btn btn-sm btn-danger" id="btnStopCam">Stop</button>
@@ -360,7 +400,7 @@
         <!-- Microphone Oscilloscope & VU Meter -->
         <div class="card">
           <div class="card-header">
-            <h3>🎙️ Microphone & Real-Time Waveform Oscilloscope</h3>
+            <h3>🎙️ Microphone & Real-Time Waveform Oscilloscope <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <div class="actions">
               <button class="btn btn-sm btn-success" id="btnStartMic">Buka Mic</button>
               <button class="btn btn-sm btn-danger" id="btnStopMic">Stop</button>
@@ -379,7 +419,7 @@
         <!-- Web Audio Synthesizer -->
         <div class="card">
           <div class="card-header">
-            <h3>🎹 Web Audio Harmonic Synthesizer</h3>
+            <h3>🎹 Web Audio Harmonic Synthesizer <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <div class="actions">
               <button class="btn btn-sm btn-primary" id="btnStartSynth">Bunyikan</button>
               <button class="btn btn-sm btn-danger" id="btnStopSynth">Hentikan</button>
@@ -406,7 +446,7 @@
         <!-- Autonomous Video Generator -->
         <div class="card">
           <div class="card-header">
-            <h3>📺 Autonomous Video Pipeline (Zero-File Canvas Stream)</h3>
+            <h3>📺 Autonomous Video Pipeline (Zero-File Canvas Stream) <span class="badge-auto" style="margin-left: 8px;">Otomatis</span></h3>
           </div>
           <div class="media-preview-box">
             <video id="testVideo" controls autoplay loop playsinline muted></video>
@@ -421,7 +461,7 @@
       <!-- Speech TTS -->
       <div class="card">
         <div class="card-header">
-          <h3>🗣️ Speech Synthesis (TTS Text-to-Speech)</h3>
+          <h3>🗣️ Speech Synthesis (TTS Text-to-Speech) <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
         </div>
         <div style="display: flex; gap: 12px; margin-bottom: 8px;">
           <input type="text" id="ttsTextInput" class="search-input" value="Respect Desktop adalah browser mandiri super cepat dan handal.">
@@ -437,14 +477,14 @@
       <!-- 20K Particle Physics Simulation -->
       <div class="card highlight">
         <div class="card-header">
-          <h3>⚡ 2D Canvas Particle Physics Stress Rig (Hingga 20,000 Partikel)</h3>
+          <h3>⚡ 2D Canvas Particle Physics Stress Rig (Hingga 20,000 Partikel) <span class="badge-auto" style="margin-left: 8px;">Live Render</span></h3>
           <div class="benchmark-fps-meter">
             <span class="val" id="fpsValue">60</span>
             <span class="unit">FPS (Min: <span id="minFpsValue">--</span>)</span>
           </div>
         </div>
         <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <span class="telemetry-label">Jumlah Partikel Simultan</span>
+          <span class="telemetry-label">Jumlah Partikel Simultan (Geser Slider untuk Menguji Beban)</span>
           <span id="particleCountLabel" class="code-pill">5000 Particles</span>
         </div>
         <input type="range" id="particleCountRange" min="1000" max="20000" step="1000" value="5000" style="width: 100%; margin-bottom: 12px;">
@@ -455,7 +495,7 @@
         <!-- DOM Thrashing -->
         <div class="card">
           <div class="card-header">
-            <h3>🌳 DOM Thrashing & Mutation Benchmark</h3>
+            <h3>🌳 DOM Thrashing & Mutation Benchmark <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <button class="btn btn-sm btn-primary" id="btnRunDomStress">Uji 5,000 Nodes</button>
           </div>
           <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji kecepatan pembuatan node, layout reflow, kalkulasi style, dan pembersihan memori DOM:</p>
@@ -466,7 +506,7 @@
         <!-- Compute Main vs Worker -->
         <div class="card">
           <div class="card-header">
-            <h3>🧠 JavaScript Compute Benchmark (Prime Number Sieve)</h3>
+            <h3>🧠 JavaScript Compute Benchmark (Prime Sieve) <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <div class="actions">
               <button class="btn btn-sm" id="btnRunMainCompute">Main Thread (Sync)</button>
               <button class="btn btn-sm btn-success" id="btnRunWorkerCompute">Web Worker (Thread)</button>
@@ -481,7 +521,7 @@
         <!-- Memory Stress -->
         <div class="card">
           <div class="card-header">
-            <h3>💾 Memory Buffer Allocation & Garbage Collection</h3>
+            <h3>💾 Memory Buffer Allocation & Garbage Collection <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <button class="btn btn-sm btn-primary" id="btnRunMemStress">Alokasikan 200 MB</button>
           </div>
           <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji ketahanan alokasi RAM chunking TypedArray dan latensi dereferencing GC:</p>
@@ -491,7 +531,7 @@
         <!-- Storage IO -->
         <div class="card">
           <div class="card-header">
-            <h3>⚡ Storage I/O Throughput Stress</h3>
+            <h3>⚡ Storage I/O Throughput Stress <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
             <button class="btn btn-sm btn-primary" id="btnRunStorageStress">Uji 1,000 Transaksi</button>
           </div>
           <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji operasi bulk write, bulk read, dan bulk delete per detik (ops/sec):</p>
@@ -500,18 +540,53 @@
       </div>
     </div>
 
-    <!-- TERMINAL / CONSOLE LOG HUD -->
+    <!-- TERMINAL / CONSOLE LOG HUD & INTERACTIVE REPL -->
     <div class="terminal-card">
       <div class="terminal-header">
-        <span>🖥️ Live Diagnostic Event Telemetry</span>
+        <span>🖥️ Live Diagnostic Event Telemetry &amp; Interactive REPL</span>
         <button class="btn btn-sm" onclick="clearTerminal()">Bersihkan Log</button>
       </div>
       <div class="terminal-body" id="terminalBody">
         <!-- Live logs populated here -->
       </div>
+      <div class="repl-container">
+        <span class="repl-prompt">&gt;</span>
+        <input type="text" id="replInput" class="repl-input" placeholder="Ketik perintah JS untuk evaluasi langsung (contoh: location.origin, navigator.userAgent, window.mbQuery)... Tekan Enter untuk menjalankan.">
+        <button class="btn btn-sm btn-primary" id="btnReplRun">Jalankan</button>
+      </div>
     </div>
 
   </main>
+
+  <!-- =======================================================================
+       REPORT INSPECTOR MODAL
+       ======================================================================= -->
+  <div id="reportModal" class="modal-backdrop">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 id="modalReportTitle">💾 Laporan Audit Browser</h3>
+        <div style="display: flex; gap: 8px;">
+          <button id="modalTabJson" class="btn btn-sm btn-primary" onclick="switchReportFormat('json')">Format JSON</button>
+          <button id="modalTabMd" class="btn btn-sm" onclick="switchReportFormat('markdown')">Format Markdown</button>
+          <button class="btn btn-sm" onclick="closeReportModal()">✕ Tutup</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="font-size: 11px;">
+          Laporan di bawah ini memuat hasil evaluasi lengkap seluruh standar web, spesifikasi hardware, GPU unmasked, dan daftar API. Anda dapat menyalinnya langsung atau mengunduh berkasnya:
+        </p>
+        <textarea id="reportContentArea" class="modal-textarea" readonly></textarea>
+      </div>
+      <div class="modal-footer">
+        <span class="muted" style="font-size: 11px;">Status: Siap disalin atau diunduh</span>
+        <div style="display: flex; gap: 8px;">
+          <button id="btnModalCopy" class="btn btn-primary" onclick="copyReportFromModal()">📋 Salin Semua ke Clipboard</button>
+          <button class="btn" onclick="downloadReportFile()">💾 Unduh File</button>
+          <button class="btn btn-danger" onclick="closeReportModal()">Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- =======================================================================
        MODULAR SCRIPTS
