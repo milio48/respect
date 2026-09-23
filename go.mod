@@ -9,6 +9,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jlaffaye/ftp v0.2.0 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/panjf2000/ants/v2 v2.10.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect

@@ -34,7 +34,7 @@ Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
 |---|---|---|
 | **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | Ringan, hemat memori & kompatibilitas sistem lawas |
 | **Bentuk Distribusi** | **1 File `.exe` Mandiri** (Single Binary) | **1 File `.exe` Mandiri** (Single Binary) |
-| **Ukuran File Biner** | **~72 MB** *(seluruh engine terintegrasi)* | **~57 MB** *(seluruh engine terintegrasi)* |
+| **Ukuran File Biner** | **~28 MB** *(seluruh engine terintegrasi)* | **~57 MB** *(seluruh engine terintegrasi)* |
 | **Engine Browser** | Chromium 132 (Lebih baru & Cepat) | Miniblink 49 (Ringan & Hemat RAM) |
 | **Dukungan Windows** | Windows 7, 8, 10, 11 (64-bit) | Windows 7, 8, 10, 11 (64-bit)* / XP s.d. 11 (32-bit)* |
 | **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), utilitas kantor, komputer lawas |

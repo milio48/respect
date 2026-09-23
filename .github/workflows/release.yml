@@ -93,9 +93,11 @@ jobs:
           }
           $env:GOARCH = "amd64"
 
-          # 2. Bangun Respect Modern (v132 Standalone Single File - Engine Tertanam)
+          # 2. Bangun Respect Modern (v132 Standalone Single File - Engine Tertanam & Terkompresi ZSTD)
           $modernDir = "dist/respect"
           New-Item -ItemType Directory -Path $modernDir -Force | Out-Null
+          go run scripts/compress_dll.go
+          if ($LASTEXITCODE -ne 0) { throw "Kompresi zstd gagal (exit code $LASTEXITCODE)" }
           go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui $ldVersion" -o "$modernDir/respect.exe" .
           if ($LASTEXITCODE -ne 0) { throw "go build gagal: respect.exe (exit $LASTEXITCODE)" }
           if ((Test-Path "assets/rcedit.exe") -and (Test-Path "assets/respect-full.ico")) {

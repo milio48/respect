@@ -4,6 +4,7 @@
 *.dll
 !assets/rcedit.exe
 !assets/blink.dll
+!assets/blink.dll.zst
 test-v132/
 dist/
 release/

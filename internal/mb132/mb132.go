@@ -1,8 +1,10 @@
 package mb132
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/klauspost/compress/zstd"
 	"respect-app/assets"
 )
 
@@ -245,14 +248,16 @@ func findDLL() (string, error) {
 	}
 
 	// Jika mode release (single file .exe mandiri dengan engine tertanam)
-	if len(assets.BlinkDLL) > 0 {
+	if len(assets.BlinkDLLZst) > 0 {
 		return ensureExtractedDLL()
 	}
 
 	return "", errors.New("file Miniblink 132 DLL (blink.dll atau mb132_x64.dll) tidak ditemukan di folder aplikasi")
 }
 
-// ensureExtractedDLL mengekstrak embedded blink.dll ke cache lokal sistem (%LocalAppData%\respect\engine)
+const expectedBlinkDLLSize = 68962816
+
+// ensureExtractedDLL mendekompresi dan mengekstrak embedded blink.dll.zst ke cache lokal sistem (%LocalAppData%\respect\engine)
 func ensureExtractedDLL() (string, error) {
 	baseDir := os.Getenv("LOCALAPPDATA")
 	if baseDir == "" {
@@ -261,8 +266,8 @@ func ensureExtractedDLL() (string, error) {
 	engineDir := filepath.Join(baseDir, "respect", "engine")
 	targetPath := filepath.Join(engineDir, "blink.dll")
 
-	// Jika file cache sudah ada dengan ukuran sama persis, gunakan langsung (start instan)
-	if fi, err := os.Stat(targetPath); err == nil && fi.Size() == int64(len(assets.BlinkDLL)) {
+	// Jika file cache sudah ada dengan ukuran sama persis (68.96 MB), gunakan langsung (start instan 0 ms)
+	if fi, err := os.Stat(targetPath); err == nil && fi.Size() == expectedBlinkDLLSize {
 		return targetPath, nil
 	}
 
@@ -270,20 +275,40 @@ func ensureExtractedDLL() (string, error) {
 		return "", fmt.Errorf("gagal membuat direktori cache engine (%s): %w", engineDir, err)
 	}
 
+	zr, err := zstd.NewReader(bytes.NewReader(assets.BlinkDLLZst))
+	if err != nil {
+		return "", fmt.Errorf("gagal inisialisasi dekompresi zstd: %w", err)
+	}
+	defer zr.Close()
+
 	tmpPath := targetPath + ".tmp"
-	if err := os.WriteFile(tmpPath, assets.BlinkDLL, 0644); err != nil {
-		if errDirect := os.WriteFile(targetPath, assets.BlinkDLL, 0644); errDirect != nil {
-			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() > 0 {
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		tmpFile, err = os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
 				return targetPath, nil
 			}
-			return "", fmt.Errorf("gagal mengekstrak blink.dll ke %s: %w", targetPath, errDirect)
+			return "", fmt.Errorf("gagal membuka target DLL (%s): %w", targetPath, err)
 		}
+		if _, err := io.Copy(tmpFile, zr); err != nil {
+			_ = tmpFile.Close()
+			return "", fmt.Errorf("gagal mendekompresi blink.dll: %w", err)
+		}
+		_ = tmpFile.Close()
 		return targetPath, nil
 	}
 
+	if _, err := io.Copy(tmpFile, zr); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("gagal mendekompresi blink.dll: %w", err)
+	}
+	_ = tmpFile.Close()
+
 	_ = os.Remove(targetPath)
 	if err := os.Rename(tmpPath, targetPath); err != nil {
-		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() > 0 {
+		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
 			_ = os.Remove(tmpPath)
 			return targetPath, nil
 		}

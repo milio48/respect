@@ -74,6 +74,15 @@ if ($Target -eq 'all' -or $Target -eq 'modern') {
 
     $modernExe = Join-Path $modernDir 'respect.exe'
     $tags = if ($Embed) { "v132,embed132" } else { "v132" }
+
+    if ($Embed) {
+        $compressScript = Join-Path $PSScriptRoot 'compress_dll.go'
+        if ((Test-Path $compressScript) -and (Test-Path 'assets\blink.dll')) {
+            go run $compressScript
+            if ($LASTEXITCODE -ne 0) { throw "Kompresi zstd gagal (exit code $LASTEXITCODE)" }
+        }
+    }
+
     go build -tags $tags -ldflags="-s -w -H windowsgui $ldVersion" -o $modernExe .
     if ($LASTEXITCODE -ne 0) { throw "go build Respect Modern gagal (exit code $LASTEXITCODE)" }
 
