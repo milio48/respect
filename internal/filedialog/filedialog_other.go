@@ -11,7 +11,12 @@ func PickIcon(owner uintptr) (string, error) {
 	return "", errUnsupported
 }
 
-// PickFile tidak didukung di luar Windows.
-func PickFile(owner uintptr, title, filter string) (string, error) {
+// PickFolder tidak didukung di luar Windows.
+func PickFolder(owner uintptr, title string) (string, error) {
+	return "", errUnsupported
+}
+
+// PickHTML tidak didukung di luar Windows.
+func PickHTML(owner uintptr) (string, error) {
 	return "", errUnsupported
 }

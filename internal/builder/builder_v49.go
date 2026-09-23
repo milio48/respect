@@ -61,9 +61,15 @@ func Run() {
 		return string(respBytes)
 	})
 
-	// Daftarkan IPC handler untuk dialog pilih file icon native
+	// Daftarkan IPC handler untuk dialog native
 	app.IPC.Handle(cmdPickIcon, func(_ string) string {
 		return pickIconJSON(ownerHWND(view))
+	})
+	app.IPC.Handle(cmdPickFolder, func(_ string) string {
+		return pickFolderJSON(ownerHWND(view))
+	})
+	app.IPC.Handle(cmdPickHTML, func(_ string) string {
+		return pickHTMLJSON(ownerHWND(view))
 	})
 
 	view.LoadURL("http://builder/index.html")

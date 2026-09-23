@@ -131,7 +131,40 @@ func main() {
 			return
 		}
 
-		// B. Mode Single File / URL (V1 Legacy)
+		// B. Mode HTML String (V2 Virtual Host In-Memory)
+		if *mode == "html" {
+			htmlCode := strings.TrimSpace(*source)
+			if htmlCode == "" {
+				fmt.Fprintln(os.Stderr, "error: parameter --source kode HTML wajib diisi untuk mode html")
+				os.Exit(1)
+			}
+			if !strings.HasPrefix(strings.ToLower(htmlCode), "<!doctype") && !strings.HasPrefix(strings.ToLower(htmlCode), "<html") {
+				htmlCode = fmt.Sprintf("<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>%s</title>\n</head>\n<body>\n%s\n</body>\n</html>", *title, htmlCode)
+			}
+			files := map[string][]byte{
+				"index.html": []byte(htmlCode),
+			}
+			cfg := payload.Config{
+				Mode:       "html",
+				Source:     "index.html",
+				Title:      *title,
+				Width:      *width,
+				Height:     *height,
+				IconPath:   *iconPath,
+				OutName:    outName,
+				AppVersion: *appVer,
+				Company:    *company,
+				Copyright:  *copyright,
+			}
+			if err := payload.BuildSelfV2(cfg, files); err != nil {
+				fmt.Fprintln(os.Stderr, "build v2 error:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK:", cfg.OutName)
+			return
+		}
+
+		// C. Mode Single File / URL (V1 Legacy)
 		if strings.TrimSpace(*source) == "" {
 			fmt.Fprintln(os.Stderr, "error: parameter --source atau --dir wajib diisi")
 			os.Exit(1)

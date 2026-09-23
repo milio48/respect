@@ -2,6 +2,7 @@ package builder
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,9 +35,14 @@ func buildAppFromConfig(cfg payload.Config) error {
 		return payload.BuildSelfV2(cfg, files)
 
 	case "html":
+		htmlCode := strings.TrimSpace(cfg.Source)
+		// Pastikan kode HTML memuat struktur minimum agar tidak diperlakukan sebagai plain text oleh browser
+		if !strings.HasPrefix(strings.ToLower(htmlCode), "<!doctype") && !strings.HasPrefix(strings.ToLower(htmlCode), "<html") {
+			htmlCode = fmt.Sprintf("<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>%s</title>\n</head>\n<body>\n%s\n</body>\n</html>", cfg.Title, htmlCode)
+		}
 		// Kemas kode HTML langsung ke Virtual Host V2 in-memory
 		files := map[string][]byte{
-			"index.html": []byte(cfg.Source),
+			"index.html": []byte(htmlCode),
 		}
 		cfg.Source = "index.html"
 		return payload.BuildSelfV2(cfg, files)

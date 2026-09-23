@@ -562,13 +562,17 @@
     <!-- Mode Selector -->
     <div class="segmented-control" role="group" aria-label="Pilih mode sumber konten">
       <button type="button" class="seg-btn active" data-mode="url" aria-pressed="true">🌐 URL Website</button>
+      <button type="button" class="seg-btn" data-mode="dir" aria-pressed="false">📦 Folder App (V2)</button>
       <button type="button" class="seg-btn" data-mode="html" aria-pressed="false">📄 HTML Inline</button>
-      <button type="button" class="seg-btn" data-mode="file" aria-pressed="false">📁 File HTML Lokal</button>
+      <button type="button" class="seg-btn" data-mode="file" aria-pressed="false">📁 File HTML (V2)</button>
     </div>
 
     <!-- Source Input -->
     <div class="field">
-      <label id="source-label" for="source">Target URL</label>
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 2px;">
+        <label id="source-label" for="source" style="margin-bottom: 0;">Target URL</label>
+        <button type="button" class="btn-browse" id="btn-source-pick" style="display: none; padding: 2px 10px; font-size: 11.5px; height: 26px; border-radius: 4px;">📁 Pilih Folder…</button>
+      </div>
       <textarea id="source" placeholder="https://my-app.example.com" spellcheck="false" autocomplete="off"></textarea>
       <div class="hint" id="source-hint">Masukkan URL web lengkap termasuk https://</div>
       <div class="err" id="err-source" role="alert"></div>
@@ -665,20 +669,38 @@
     url: {
       label: 'Target URL',
       placeholder: 'https://my-app.example.com',
-      hint: 'URL web yang akan dimuat saat binary dijalankan.',
-      minHeight: '60px'
+      hint: 'Masukkan URL web lengkap termasuk https:// atau http://',
+      minHeight: '38px',
+      btnText: '',
+      btnCmd: '',
+      isCode: false
+    },
+    dir: {
+      label: 'Path Folder Project Web (Dist / Build)',
+      placeholder: 'C:\\project\\my-app\\dist',
+      hint: 'Pilih folder web yang memuat index.html. Seluruh aset akan dikemas & dienkripsi AES-256-GCM ke RAM (Virtual Host http://app/).',
+      minHeight: '38px',
+      btnText: '📁 Pilih Folder…',
+      btnCmd: 'pick-folder',
+      isCode: false
     },
     html: {
       label: 'Kode HTML (Single-file)',
-      placeholder: '<!DOCTYPE html>\n<html>\n<head><title>App</title></head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>',
-      hint: 'Tuliskan kode HTML, CSS, dan JS yang akan di-bundle ke dalam EXE.',
-      minHeight: '150px'
+      placeholder: '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <title>App</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>',
+      hint: 'Tuliskan kode HTML, CSS, dan JS yang akan dikemas dan dienkripsi AES-256-GCM ke dalam binary.',
+      minHeight: '140px',
+      btnText: '',
+      btnCmd: '',
+      isCode: true
     },
     file: {
-      label: 'Path File HTML Lokal',
-      placeholder: 'C:\\project\\dist\\index.html',
-      hint: 'Path absolut atau relatif ke file HTML utama.',
-      minHeight: '60px'
+      label: 'Path File HTML Utama',
+      placeholder: 'C:\\project\\my-app\\dist\\index.html',
+      hint: 'Pilih file .html lokal. File ini beserta seluruh aset di foldernya akan dikemas dan dienkripsi ke dalam biner.',
+      minHeight: '38px',
+      btnText: '📄 Pilih File HTML…',
+      btnCmd: 'pick-html',
+      isCode: false
     }
   };
 
@@ -764,6 +786,19 @@
     var src = document.getElementById('source');
     src.placeholder = conf.placeholder;
     src.style.minHeight = conf.minHeight;
+    src.style.height = conf.isCode ? conf.minHeight : '38px';
+    src.style.fontFamily = conf.isCode ? 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' : 'inherit';
+
+    var pickBtn = document.getElementById('btn-source-pick');
+    if (pickBtn) {
+      if (conf.btnText) {
+        pickBtn.textContent = conf.btnText;
+        pickBtn.style.display = 'inline-block';
+      } else {
+        pickBtn.style.display = 'none';
+      }
+    }
+
     setError('source', '');
     saveState();
   }
@@ -870,8 +905,9 @@
     return res.cancelled ? '' : (res.path || '');
   }
 
-  function invokePicker() {
-    var payload = JSON.stringify({ cmd: 'pick-icon' });
+  function invokePicker(cmd) {
+    if (!cmd) cmd = 'pick-icon';
+    var payload = JSON.stringify({ cmd: cmd });
 
     if (typeof window.mbQuery === 'function') {
       // Miniblink 132: satu kanal query, dibedakan lewat field "cmd"
@@ -884,7 +920,7 @@
 
     if (typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function') {
       // Miniblink 49: kanal IPC khusus
-      return window.ipc.invoke('pick-icon', '').then(resolvePickerResult);
+      return window.ipc.invoke(cmd, '').then(resolvePickerResult);
     }
 
     return Promise.reject(new Error('IPC Miniblink tidak tersedia di context ini.'));
@@ -898,11 +934,39 @@
     btn.disabled = true;
     btn.textContent = 'Membuka…';
 
-    invokePicker()
+    invokePicker('pick-icon')
       .then(function (path) {
         if (path) {
           document.getElementById('icon').value = path;
           setError('icon', '');
+          saveState();
+        }
+      })
+      .catch(function (err) {
+        showError(err && err.message ? err.message : String(err), 'Gagal membuka dialog:');
+      })
+      .then(function () {
+        btn.textContent = original;
+        btn.disabled = false;
+      });
+  }
+
+  function pickSource() {
+    var conf = MODES[currentMode];
+    if (!conf || !conf.btnCmd) return;
+
+    var btn = document.getElementById('btn-source-pick');
+    if (btn.disabled) return;
+
+    var original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Membuka…';
+
+    invokePicker(conf.btnCmd)
+      .then(function (path) {
+        if (path) {
+          document.getElementById('source').value = path;
+          setError('source', '');
           saveState();
         }
       })
@@ -950,9 +1014,12 @@
     }
 
     if (!cfg.source) {
-      fail('source', currentMode === 'url'
-        ? 'URL target wajib diisi.'
-        : (currentMode === 'html' ? 'Kode HTML tidak boleh kosong.' : 'Path file HTML wajib diisi.'));
+      var msg = 'Sumber konten wajib diisi.';
+      if (currentMode === 'url') msg = 'URL target wajib diisi.';
+      else if (currentMode === 'dir') msg = 'Path folder project web (dist / build) wajib diisi.';
+      else if (currentMode === 'html') msg = 'Kode HTML tidak boleh kosong.';
+      else if (currentMode === 'file') msg = 'Path file HTML lokal wajib diisi.';
+      fail('source', msg);
     } else if (currentMode === 'url' && !/^https?:\/\//i.test(cfg.source)) {
       setError('source', 'URL sebaiknya diawali http:// atau https://', 'warn');
     } else if (currentMode === 'file' && !/\.html?$/i.test(cfg.source)) {
@@ -1147,12 +1214,42 @@
 
     document.getElementById('advanced-toggle').addEventListener('click', function () { toggleAdvanced(); });
     document.getElementById('btn-icon-pick').addEventListener('click', pickIcon);
+    var srcBtn = document.getElementById('btn-source-pick');
+    if (srcBtn) srcBtn.addEventListener('click', pickSource);
     document.getElementById('btn-build').addEventListener('click', buildApp);
 
     document.addEventListener('keydown', function (ev) {
       if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
         ev.preventDefault();
         buildApp();
+      }
+    });
+
+    // Dukungan Drag & Drop folder atau file ke jendela builder
+    window.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    window.addEventListener('drop', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        var f = e.dataTransfer.files[0];
+        if (f.path) {
+          if (/\.ico$/i.test(f.path)) {
+            document.getElementById('icon').value = f.path;
+            setError('icon', '');
+          } else if (/\.html?$/i.test(f.path)) {
+            setMode('file');
+            document.getElementById('source').value = f.path;
+            setError('source', '');
+          } else {
+            setMode('dir');
+            document.getElementById('source').value = f.path;
+            setError('source', '');
+          }
+          saveState();
+        }
       }
     });
 

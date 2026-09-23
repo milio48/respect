@@ -603,6 +603,8 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 				reqURL := ptrToUtf8(urlPtr)
 				const prefixHttp = "http://app/"
 				const prefixHttps = "https://app/"
+				const prefixHttpLocal = "http://app.local/"
+				const prefixHttpsLocal = "https://app.local/"
 				var relPath string
 				matched := false
 
@@ -611,6 +613,12 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 					matched = true
 				} else if strings.HasPrefix(reqURL, prefixHttps) {
 					relPath = strings.TrimPrefix(reqURL, prefixHttps)
+					matched = true
+				} else if strings.HasPrefix(reqURL, prefixHttpLocal) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttpLocal)
+					matched = true
+				} else if strings.HasPrefix(reqURL, prefixHttpsLocal) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttpsLocal)
 					matched = true
 				}
 
@@ -625,8 +633,13 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 
 					if data, ok := wv.virtualFiles[relPath]; ok {
 						mime := tarball.DetectMIME(relPath)
+						// Ekstrak pure MIME (tanpa charset) untuk procMbNetSetMIMEType agar tidak ditolak engine Chromium
 						if procMbNetSetMIMEType != nil {
-							mimeBytes := append([]byte(mime), 0)
+							pureMime := mime
+							if idx := strings.Index(pureMime, ";"); idx != -1 {
+								pureMime = strings.TrimSpace(pureMime[:idx])
+							}
+							mimeBytes := append([]byte(pureMime), 0)
 							procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
 						}
 						if procMbNetSetData != nil {

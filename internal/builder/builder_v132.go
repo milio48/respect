@@ -33,8 +33,13 @@ func Run() {
 
 	// Daftarkan handler query JavaScript (window.mbQuery)
 	view.HandleQuery(func(cfgJSON string) string {
-		if parseCommand(cfgJSON) == cmdPickIcon {
+		switch parseCommand(cfgJSON) {
+		case cmdPickIcon:
 			return pickIconJSON(view.HostHWND())
+		case cmdPickFolder:
+			return pickFolderJSON(view.HostHWND())
+		case cmdPickHTML:
+			return pickHTMLJSON(view.HostHWND())
 		}
 
 		var cfg payload.Config
