@@ -70,17 +70,27 @@ var MediaLabEngine = (function () {
   }
 
   function startCamera(videoEl, statusEl, callback) {
-    if (cameraRunning) return;
+    if (cameraRunning) {
+      // Sudah berjalan: tetap panggil callback agar pemanggil tidak menggantung.
+      if (callback) callback(true, { isVirtual: true, alreadyRunning: true, canvas: getCamCanvas() });
+      return;
+    }
     cameraRunning = true;
 
     var canvas = getCamCanvas();
     if (!canvas) {
+      cameraRunning = false;
       if (statusEl) statusEl.textContent = 'Elemen canvas kamera tidak ditemukan.';
       if (callback) callback(false, new Error('Canvas not found'));
       return;
     }
     var ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      cameraRunning = false;
+      if (statusEl) statusEl.textContent = '2D context kamera tidak tersedia.';
+      if (callback) callback(false, new Error('Camera 2D context unavailable'));
+      return;
+    }
 
     var frame = 0;
     var lastTime = performance.now();

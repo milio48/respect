@@ -565,7 +565,9 @@
         </p>
         <p class="muted" style="font-size: 11px;">
           Aksi bertanda <span class="status-badge warn">DIALOG</span> membuka alert/confirm/prompt/popup native.
-          Aksi tersebut dapat memblokir sementara UI engine — jalankan satu per satu bila ingin aman.
+          Aksi bertanda <span class="status-badge fail">HAZARD</span> (misalnya <code>window.open</code>) dapat menimpa window utama
+          atau membekukan aplikasi pada engine embedded ini — aksi HAZARD <strong>tidak pernah</strong> dijalankan oleh tombol Run All,
+          hanya bisa diklik manual satu per satu. Siapkan restart aplikasi sebelum mencobanya dan catat hasilnya di kolom Catatan.
         </p>
       </div>
 
@@ -646,9 +648,13 @@
         <div class="card">
           <div class="card-header">
             <h3>📋 Checklist Verifikasi Manual</h3>
+            <div class="actions">
+              <button class="btn btn-sm btn-danger" onclick="clearManualState()">🗑 Bersihkan Semua</button>
+            </div>
           </div>
           <p class="muted" style="font-size: 11px; margin-bottom: 8px;">
             Tandai setelah memverifikasi perilaku engine secara manual. Status tersimpan otomatis dan ikut dilampirkan ke laporan.
+            Tombol Bersihkan menghapus checklist &amp; catatan dari sesi sebelumnya agar log baru tidak memuat data lama.
           </p>
           <div id="manualChecklistContainer" class="checklist-box"><!-- Populated by JS --></div>
         </div>

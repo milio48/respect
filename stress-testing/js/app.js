@@ -1352,6 +1352,14 @@
           warn.textContent = 'DIALOG';
           tdAct.appendChild(warn);
         }
+        if (a.hazard) {
+          var hz = document.createElement('span');
+          hz.className = 'status-badge fail';
+          hz.style.marginLeft = '6px';
+          hz.textContent = 'HAZARD';
+          hz.title = 'Dapat menimpa window utama / membekukan aplikasi. Hanya dijalankan manual, tidak pernah oleh Run All.';
+          tdAct.appendChild(hz);
+        }
 
         tr.appendChild(tdCat);
         tr.appendChild(tdName);
@@ -1442,6 +1450,19 @@
     renderFeatureTables();
     updateRunnerCounters();
     log('Runner direset.', 'info');
+  };
+
+  window.clearManualState = function () {
+    try {
+      localStorage.removeItem(CHECKLIST_KEY);
+      localStorage.removeItem('__respect_manual_notes__');
+    } catch (e) {}
+    var notesEl = document.getElementById('manualNotesInput');
+    if (notesEl) notesEl.value = '';
+    auditReport.checklist = {};
+    auditReport.manualNotes = '';
+    renderChecklist();
+    log('Checklist verifikasi & catatan manual dibersihkan.', 'info');
   };
 
   function initFeatureLab() {

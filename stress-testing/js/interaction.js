@@ -44,6 +44,7 @@ var FeatureLabEngine = (function () {
     spec.kind = spec.kind || 'auto';
     spec.timeoutMs = spec.timeoutMs || 15000;
     spec.danger = !!spec.danger;
+    spec.hazard = !!spec.hazard;
     byId[spec.id] = spec;
     actions.push(spec);
     return spec;
@@ -130,6 +131,9 @@ var FeatureLabEngine = (function () {
     var queue = actions.filter(function (a) {
       if (onlyIds && onlyIds.indexOf(a.id) === -1) return false;
       if (!includeManual && a.kind === 'manual') return false;
+      // Aksi berbahaya (mis. window.open yang bisa menimpa window utama) TIDAK
+      // pernah dijalankan oleh runAll; harus diklik manual satu per satu.
+      if (a.hazard && !opts.allowHazard) return false;
       return true;
     });
 
@@ -213,7 +217,19 @@ var FeatureLabEngine = (function () {
     run: function (done) {
       if (typeof fetch !== 'function') return done(false, 'fetch() tidak tersedia');
       fetch('__respect_missing_' + Date.now() + '.json').then(function (r) {
-        done(true, 'Server menjawab status=' + r.status + ' ok=' + r.ok + ' (tidak crash)');
+        return r.text().then(function (t) {
+          var ct = (r.headers && typeof r.headers.get === 'function') ? r.headers.get('content-type') : 'n/a';
+          var looksHtml = /<!DOCTYPE|<html/i.test(t);
+          var detail;
+          if (r.ok && looksHtml) {
+            detail = 'status=200 ok=true bytes=' + t.length + ' type=' + ct + ' -> Virtual Host SPA-fallback ke HTML (path tak dikenal tetap 200)';
+          } else if (r.ok) {
+            detail = 'status=200 ok=true bytes=' + t.length + ' type=' + ct + ' -> path tak dikenal dijawab 200 (bukan 404)';
+          } else {
+            detail = 'status=' + r.status + ' ok=false type=' + ct + ' -> 404 ditangani dengan benar (tidak crash)';
+          }
+          done(true, detail);
+        });
       }).catch(function (e) {
         done(true, 'Request ditolak dengan error: ' + (e && e.message ? e.message : String(e)) + ' (tidak crash)');
       });
@@ -300,11 +316,23 @@ var FeatureLabEngine = (function () {
       } catch (e) {
         return done(false, 'Dynamic import() tidak dapat di-parse engine: ' + e.message);
       }
-      dynamicImport('module-probe.mjs').then(function (mod) {
+      // Gunakan URL absolut dari document.baseURI: `import()` di dalam new Function
+      // bisa me-resolve relatif ke js/interaction.js (bukan root dokumen).
+      var url = 'module-probe.mjs';
+      try { url = new URL('module-probe.mjs', document.baseURI || window.location.href).href; } catch (e) {}
+      dynamicImport(url).then(function (mod) {
         var ok = !!mod && typeof mod.probe === 'function' && mod.probe() === 'module-ok';
-        done(ok, 'Module dimuat. probe()=' + (mod && mod.probe ? mod.probe() : 'n/a') + ' add(2,3)=' + (mod && mod.add ? mod.add(2, 3) : 'n/a'));
+        done(ok, 'Module dimuat dari ' + url + '. probe()=' + (mod && mod.probe ? mod.probe() : 'n/a') + ' add(2,3)=' + (mod && mod.add ? mod.add(2, 3) : 'n/a'));
       }).catch(function (e) {
-        done(false, 'import() ditolak: ' + (e && e.message ? e.message : String(e)));
+        var base = 'import() ditolak: ' + (e && e.message ? e.message : String(e));
+        if (typeof fetch !== 'function') return done(false, base);
+        // Diagnostik: cek status & MIME type file module (penyebab umum kegagalan MIME sniffing).
+        fetch(url).then(function (r) {
+          var ct = (r.headers && typeof r.headers.get === 'function') ? r.headers.get('content-type') : 'n/a';
+          return r.text().then(function (t) {
+            done(false, base + ' | fetch status=' + r.status + ' content-type=' + ct + ' bytes=' + t.length);
+          });
+        }).catch(function () { done(false, base); });
       });
     }
   });
@@ -794,10 +822,12 @@ var FeatureLabEngine = (function () {
         var sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-        var ok = sel.rangeCount > 0 && String(sel).indexOf('selection') !== -1;
+        var count = sel.rangeCount;
+        var text = String(sel);
         sel.removeAllRanges();
         document.body.removeChild(p);
-        done(ok, 'rangeCount=' + sel.rangeCount + ' text="' + String(sel) + '"');
+        var ok = count > 0 && text.indexOf('selection') !== -1;
+        done(ok, 'rangeCount=' + count + ' text="' + text + '"');
       } catch (e) { done(false, 'Exception: ' + e.message); }
     }
   });
@@ -844,13 +874,19 @@ var FeatureLabEngine = (function () {
   });
 
   define({
-    id: 'dialog-window-open', category: 'Dialog', name: 'window.open() popup', kind: 'manual', danger: true, timeoutMs: 30000,
+    id: 'dialog-window-open', category: 'Dialog', name: 'window.open() popup (HAZARD)', kind: 'manual', danger: true, hazard: true, timeoutMs: 30000,
     run: function (done) {
       try {
-        var w = window.open('probe-frame.html', '_blank', 'width=420,height=320');
+        var w = window.open('about:blank', 'respect_probe_popup', 'width=420,height=320,noopener');
         setTimeout(function () {
-          if (w) { try { w.close(); } catch (e) {} done(true, 'Popup terbuka (window.open non-null)'); }
-          else done(false, 'Popup diblokir (window.open mengembalikan null)');
+          if (w && w !== window) {
+            try { w.close(); } catch (e) {}
+            done(true, 'Popup terpisah terbuka (window.open non-null, target window berbeda)');
+          } else if (w) {
+            done(true, 'window.open mengembalikan objek, TAPI engine ini dapat menimpa window yang sama (berpotensi freeze - perlu restart)');
+          } else {
+            done(false, 'Popup diblokir (window.open mengembalikan null), window utama aman');
+          }
         }, 800);
       } catch (e) { done(false, 'window.open exception: ' + e.message); }
     }
@@ -1085,7 +1121,7 @@ var FeatureLabEngine = (function () {
   });
 
   define({
-    id: 'media-camera-cycle', category: 'Media', name: 'Camera start -> snapshot -> stop (anti-crash)', kind: 'manual', timeoutMs: 20000,
+    id: 'media-camera-cycle', category: 'Media', name: 'Camera start -> snapshot -> stop (anti-crash)', kind: 'manual', timeoutMs: 12000,
     run: function (done) {
       if (typeof MediaLabEngine === 'undefined') return done(false, 'MediaLabEngine tidak tersedia');
       var videoEl = el('cameraVideo');
@@ -1094,13 +1130,15 @@ var FeatureLabEngine = (function () {
       var settled = false;
       function fin(pass, detail) { if (settled) return; settled = true; done(pass, detail); }
       try {
+        // Pastikan state bersih dulu agar tidak berhenti di kondisi "already running".
+        try { MediaLabEngine.stopCamera(videoEl, statusEl); } catch (e) {}
         MediaLabEngine.startCamera(videoEl, statusEl, function (ok, res) {
           if (!ok) return fin(false, (res && res.message) || 'kamera ditolak');
           setTimeout(function () {
             try { MediaLabEngine.snapshotCamera(videoEl, canvasEl, 'grayscale'); } catch (e) {}
             try {
               MediaLabEngine.stopCamera(videoEl, statusEl);
-              fin(true, 'start + snapshot + stop selesai tanpa crash' + (res && res.isVirtual ? ' (virtual feed)' : ''));
+              fin(true, 'start + snapshot + stop selesai tanpa crash' + (res && res.isVirtual ? ' (virtual feed)' : '') + (res && res.alreadyRunning ? ' [mode already-running]' : ''));
             } catch (e) {
               fin(false, 'stopCamera exception: ' + e.message);
             }
@@ -1137,11 +1175,20 @@ var FeatureLabEngine = (function () {
     id: 'media-synth-cycle', category: 'Media', name: 'Web Audio synth start -> stop', kind: 'manual', timeoutMs: 15000,
     run: function (done) {
       if (typeof MediaLabEngine === 'undefined') return done(false, 'MediaLabEngine tidak tersedia');
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (typeof AC !== 'function') return done(false, 'Web Audio API (AudioContext) tidak tersedia');
+      // Verifikasi AudioContext bukan mock: createOscillator harus ada.
+      var probeCtx = null;
+      try { probeCtx = new AC(); } catch (e) { return done(false, 'AudioContext gagal dibuat: ' + e.message); }
+      var hasOsc = typeof probeCtx.createOscillator === 'function';
+      var hasGain = typeof probeCtx.createGain === 'function';
+      try { if (probeCtx.close) probeCtx.close(); } catch (e) {}
+      if (!hasOsc) return done(false, 'createOscillator() tidak tersedia (AudioContext mock/no-op di engine ini)');
       var statusEl = el('synthStatus');
       try {
         MediaLabEngine.startSynth(440, 'sine', 0.05, statusEl);
         setTimeout(function () {
-          try { MediaLabEngine.stopSynth(statusEl); done(true, 'synth start + stop selesai'); }
+          try { MediaLabEngine.stopSynth(statusEl); done(true, 'synth start + stop selesai (createOscillator=' + hasOsc + ' createGain=' + hasGain + ')'); }
           catch (e) { done(false, 'stopSynth exception: ' + e.message); }
         }, 700);
       } catch (e) { done(false, 'startSynth exception: ' + e.message); }
@@ -1152,6 +1199,9 @@ var FeatureLabEngine = (function () {
     id: 'media-tts', category: 'Media', name: 'Speech Synthesis speak + cancel', kind: 'manual', timeoutMs: 15000,
     run: function (done) {
       if (typeof MediaLabEngine === 'undefined') return done(false, 'MediaLabEngine tidak tersedia');
+      if (!('speechSynthesis' in window) || typeof window.speechSynthesis.speak !== 'function') {
+        return done(false, 'speechSynthesis tidak tersedia di engine ini');
+      }
       var statusEl = el('ttsStatus');
       try {
         MediaLabEngine.speakText('Respect stress testing speech probe.', 1.0, 1.0, statusEl);
@@ -1185,7 +1235,12 @@ var FeatureLabEngine = (function () {
         setTimeout(function () {
           var ex = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
           var active = !!(document.fullscreenElement || document.webkitFullscreenElement);
-          if (ex) { try { ex.call(document); } catch (e) {} }
+          if (ex) {
+            try {
+              var exRes = ex.call(document);
+              if (exRes && typeof exRes.then === 'function') exRes.catch(function () {});
+            } catch (e) {}
+          }
           done(true, 'Fullscreen aktif=' + active + ' lalu exit dijalankan');
         }, 900);
         if (p && typeof p.then === 'function') p.catch(function () {});
@@ -1200,8 +1255,17 @@ var FeatureLabEngine = (function () {
       if (!v) return done(false, 'Elemen video tidak ditemukan');
       if (typeof v.requestPictureInPicture !== 'function') return done(false, 'PiP tidak didukung');
       try {
-        v.requestPictureInPicture().then(function () {
-          if (document.exitPictureInPicture) document.exitPictureInPicture().catch(function () {});
+        var pip = v.requestPictureInPicture();
+        if (!pip || typeof pip.then !== 'function') {
+          return done(true, 'requestPictureInPicture() ada tetapi tidak mengembalikan Promise (mock/no-op di engine ini)');
+        }
+        pip.then(function () {
+          if (document.exitPictureInPicture) {
+            try {
+              var exPip = document.exitPictureInPicture();
+              if (exPip && typeof exPip.then === 'function') exPip.catch(function () {});
+            } catch (e) {}
+          }
           done(true, 'Picture-in-Picture aktif lalu ditutup');
         }).catch(function (e) { done(false, 'PiP ditolak: ' + (e && e.message ? e.message : String(e))); });
       } catch (e) { done(false, 'PiP exception: ' + e.message); }
