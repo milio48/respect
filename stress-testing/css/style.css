@@ -779,3 +779,53 @@ input.search-input:focus {
   margin-top: 6px;
   word-break: break-all;
 }
+
+/* ==========================================================================
+   MANUAL CHECKLIST (QUICK RUNNER)
+   ========================================================================== */
+.checklist-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  font-size: 12px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.check-row:hover {
+  border-color: var(--text-dim);
+  background: var(--bg-panel);
+}
+
+.check-row input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: var(--success);
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.check-row input[type="checkbox"]:checked + span {
+  color: var(--success);
+  text-decoration: line-through;
+  text-decoration-color: rgba(16, 185, 129, 0.5);
+}
+
+/* Status cell in runner tables */
+table.data-table td .status-badge {
+  vertical-align: middle;
+}
+

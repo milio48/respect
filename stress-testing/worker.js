@@ -77,6 +77,34 @@ self.onmessage = function (e) {
         });
         break;
 
+      case 'fetch_probe':
+        var url = data.url || 'data.json';
+        if (typeof fetch !== 'function') {
+          self.postMessage({ cmd: 'fetch_result', taskId: taskId, ok: false, error: 'fetch() tidak tersedia di worker', elapsedMs: performance.now() - startTime });
+          break;
+        }
+        fetch(url, { cache: 'no-store' }).then(function (resp) {
+          return resp.text().then(function (text) {
+            self.postMessage({
+              cmd: 'fetch_result',
+              taskId: taskId,
+              ok: resp.ok && text.length > 0,
+              status: resp.status,
+              length: text.length,
+              elapsedMs: performance.now() - startTime
+            });
+          });
+        }).catch(function (err) {
+          self.postMessage({
+            cmd: 'fetch_result',
+            taskId: taskId,
+            ok: false,
+            error: (err && err.message) ? err.message : String(err),
+            elapsedMs: performance.now() - startTime
+          });
+        });
+        break;
+
       case 'transfer_test':
         var bufferSize = data.sizeBytes || (10 * 1024 * 1024); // 10MB default
         var buffer = new ArrayBuffer(bufferSize);

@@ -33,6 +33,20 @@ var CapabilityEngine = (function () {
     };
   }
 
+  // Deteksi at-rule (@layer, @scope, @property, ...) via parsing stylesheet nyata.
+  function cssAtRuleSupported(ruleText) {
+    return function () {
+      try {
+        var s = document.createElement('style');
+        s.textContent = ruleText;
+        document.head.appendChild(s);
+        var count = s.sheet ? s.sheet.cssRules.length : 0;
+        document.head.removeChild(s);
+        return count > 0;
+      } catch (e) { return false; }
+    };
+  }
+
   function runAllTests() {
     var tests = [];
 
@@ -232,6 +246,126 @@ var CapabilityEngine = (function () {
     check('Sensors', 'vibration', 'Vibration API', hasProp(navigator, 'vibrate'));
     check('Sensors', 'web-share', 'Web Share API (navigator.share)', hasProp(navigator, 'share'));
     check('Sensors', 'notification', 'Notification API (Desktop Alerts)', hasProp(window, 'Notification'));
+
+    /* =========================================================================
+       8. JAVASCRIPT MODERN LANJUTAN
+       ========================================================================= */
+    check('JavaScript', 'regexp-named-groups', 'RegExp Named Capture Groups', tryEval('var m = /(?<yr>\\d{4})/.exec("2026"); return !!m && m.groups.yr === "2026";'));
+    check('JavaScript', 'regexp-lookbehind', 'RegExp Lookbehind (?<=)', tryEval('return /(?<=\\$)\\d+/.test("$42");'));
+    check('JavaScript', 'regexp-dotall', 'RegExp dotAll (s flag)', tryEval('return /a.b/s.test("a\\nb");'));
+    check('JavaScript', 'regexp-vflag', 'RegExp Unicode Sets (v flag)', tryEval('try { return new RegExp("[\\\\p{ASCII}]", "v") instanceof RegExp; } catch (e) { return false; }'));
+    check('JavaScript', 'string-matchall', 'String.prototype.matchAll()', function () { return typeof String.prototype.matchAll === 'function'; });
+    check('JavaScript', 'array-findlast', 'Array findLast / findLastIndex', function () { return typeof Array.prototype.findLast === 'function'; });
+    check('JavaScript', 'object-groupby', 'Object.groupBy()', function () { return typeof Object.groupBy === 'function'; });
+    check('JavaScript', 'promise-withresolvers', 'Promise.withResolvers()', function () { return typeof Promise.withResolvers === 'function'; });
+    check('JavaScript', 'array-fromasync', 'Array.fromAsync()', function () { return typeof Array.fromAsync === 'function'; });
+    check('JavaScript', 'async-generators', 'Async Generators (async function*)', tryEval('return typeof (async function*(){}) === "function";'));
+    check('JavaScript', 'atomics-sab', 'Atomics & SharedArrayBuffer', function () { return typeof Atomics !== 'undefined' && typeof SharedArrayBuffer !== 'undefined'; });
+    check('JavaScript', 'symbol-asynciterator', 'Symbol.asyncIterator', function () { return typeof Symbol !== 'undefined' && !!Symbol.asyncIterator; });
+    check('JavaScript', 'intl-segmenter', 'Intl.Segmenter', function () { return typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'; });
+    check('JavaScript', 'intl-relativetime', 'Intl.RelativeTimeFormat', function () { return typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat === 'function'; });
+    check('JavaScript', 'temporal', 'Temporal date/time API', function () { return typeof Temporal !== 'undefined'; });
+    check('JavaScript', 'error-cause', 'Error cause option', tryEval('try { throw new Error("x", { cause: 42 }); } catch (e) { return e.cause === 42; }'));
+
+    /* =========================================================================
+       9. CSS LANJUTAN (AT-RULE, BLEND, MASK, SCROLL)
+       ========================================================================= */
+    check('CSS', 'layer', '@layer Cascade Layers', cssAtRuleSupported('@layer respect_a, respect_b;'));
+    check('CSS', 'scope', '@scope Scoped Styles', cssAtRuleSupported('@scope (.respect-scope) { .inner { color: red; } }'));
+    check('CSS', 'property', '@property Custom Property', cssAtRuleSupported('@property --respect-x { syntax: "<color>"; inherits: false; initial-value: red; }'));
+    check('CSS', 'sticky', 'position: sticky', cssSupports('position', 'sticky'));
+    check('CSS', 'scroll-snap', 'Scroll Snap (scroll-snap-type)', cssSupports('scroll-snap-type', 'x mandatory'));
+    check('CSS', 'mix-blend', 'mix-blend-mode', cssSupports('mix-blend-mode', 'multiply'));
+    check('CSS', 'filter', 'CSS filter (blur)', cssSupports('filter', 'blur(2px)'));
+    check('CSS', 'mask', 'CSS mask-image', cssSupports('mask-image', 'linear-gradient(#000,#fff)'));
+    check('CSS', 'transform-3d', 'transform-style preserve-3d', cssSupports('transform-style', 'preserve-3d'));
+    check('CSS', 'text-wrap', 'text-wrap: balance', cssSupports('text-wrap', 'balance'));
+    check('CSS', 'light-dark', 'light-dark() color function', cssSupports('color', 'light-dark(#000,#fff)'));
+    check('CSS', 'conic-gradient', 'conic-gradient()', cssSupports('background-image', 'conic-gradient(red, blue)'));
+    check('CSS', 'view-transition', 'view-transition-name', cssSupports('view-transition-name', 'none'));
+    check('CSS', 'focus-visible', ':focus-visible selector', function () {
+      try { document.querySelectorAll(':focus-visible'); return true; } catch (e) { return false; }
+    });
+
+    /* =========================================================================
+       10. HTML5 & WEB COMPONENTS LANJUTAN
+       ========================================================================= */
+    check('HTML5', 'popover', 'Popover API (popover attribute)', function () { return typeof HTMLElement !== 'undefined' && 'popover' in HTMLElement.prototype; });
+    check('HTML5', 'canvas-toblob', 'canvas.toBlob()', function () { return typeof HTMLCanvasElement !== 'undefined' && typeof HTMLCanvasElement.prototype.toBlob === 'function'; });
+    check('HTML5', 'img-srcset', '<img> srcset / sizes', function () { var i = document.createElement('img'); return ('srcset' in i) && ('sizes' in i); });
+    check('HTML5', 'picture-element', '<picture> element', function () { return typeof HTMLPictureElement !== 'undefined'; });
+    check('HTML5', 'video-audio-tags', '<video> & <audio> elements', function () { return !!document.createElement('video').canPlayType && !!document.createElement('audio').canPlayType; });
+    check('HTML5', 'input-date-color', 'Input type date / color', function () { var i = document.createElement('input'); i.type = 'color'; var c = i.type === 'color'; i.type = 'date'; var d = i.type === 'date'; return c && d; });
+    check('HTML5', 'datalist', '<datalist> element', function () { return 'options' in document.createElement('datalist'); });
+    check('HTML5', 'meter-progress', '<meter> & <progress> elements', function () { return ('value' in document.createElement('meter')) && ('value' in document.createElement('progress')); });
+    check('HTML5', 'slot-element', '<slot> element (Shadow DOM)', function () { return typeof HTMLSlotElement !== 'undefined'; });
+    check('HTML5', 'output-element', '<output> element', function () { return 'value' in document.createElement('output'); });
+    check('HTML5', 'contenteditable', 'contentEditable support', function () { return 'contentEditable' in document.createElement('div'); });
+    check('HTML5', 'waapi', 'Web Animations (Element.animate)', function () { return typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function'; });
+
+    /* =========================================================================
+       11. DOM & GEOMETRY LANJUTAN
+       ========================================================================= */
+    check('DOM', 'requestidlecallback', 'requestIdleCallback()', function () { return typeof window.requestIdleCallback === 'function'; });
+    check('DOM', 'raf', 'requestAnimationFrame()', function () { return typeof window.requestAnimationFrame === 'function'; });
+    check('DOM', 'getboundingclientrect', 'Element.getBoundingClientRect()', function () { return typeof Element !== 'undefined' && typeof Element.prototype.getBoundingClientRect === 'function'; });
+    check('DOM', 'closest', 'Element.closest()', function () { return typeof Element !== 'undefined' && typeof Element.prototype.closest === 'function'; });
+    check('DOM', 'classlist-dataset', 'classList & dataset', function () { var d = document.createElement('div'); return !!(d.classList && d.dataset); });
+    check('DOM', 'custom-event', 'CustomEvent constructor', function () { return typeof window.CustomEvent === 'function'; });
+    check('DOM', 'abort-timeout', 'AbortSignal.timeout()', function () { return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'; });
+    check('DOM', 'matchmedia', 'window.matchMedia()', function () { return typeof window.matchMedia === 'function'; });
+    check('DOM', 'getcomputedstyle', 'getComputedStyle()', function () { return typeof window.getComputedStyle === 'function'; });
+    check('DOM', 'treewalker-range', 'TreeWalker, Range & Selection', function () { return typeof document.createTreeWalker === 'function' && typeof document.createRange === 'function' && !!window.getSelection; });
+    check('DOM', 'pointer-events-api', 'PointerEvent API', function () { return typeof window.PointerEvent === 'function'; });
+    check('DOM', 'touch-events-api', 'TouchEvent / touch points', function () { return ('ontouchstart' in window) || typeof window.TouchEvent === 'function'; });
+    check('DOM', 'domrect', 'DOMRect geometry object', function () { return typeof DOMRect === 'function'; });
+
+    /* =========================================================================
+       12. NETWORK & PROTOKOL LANJUTAN
+       ========================================================================= */
+    check('Network', 'xmlhttprequest', 'XMLHttpRequest (classic AJAX)', hasProp(window, 'XMLHttpRequest'));
+    check('Network', 'request-response', 'Fetch Request / Response / Headers', function () { return typeof Request === 'function' && typeof Response === 'function' && typeof Headers === 'function'; });
+    check('Network', 'formdata', 'FormData', hasProp(window, 'FormData'));
+    check('Network', 'url-searchparams', 'URL & URLSearchParams', function () { return typeof URL === 'function' && typeof URLSearchParams === 'function'; });
+    check('Network', 'atob-btoa', 'atob() / btoa() Base64', function () { return typeof atob === 'function' && typeof btoa === 'function'; });
+    check('Network', 'sendbeacon', 'navigator.sendBeacon()', hasProp(navigator, 'sendBeacon'));
+    check('Network', 'webrtc', 'WebRTC (RTCPeerConnection)', function () { return typeof window.RTCPeerConnection === 'function'; });
+    check('Network', 'urlpattern', 'URLPattern API', function () { return typeof URLPattern === 'function'; });
+    check('Network', 'websocket-api', 'WebSocket constructor', hasProp(window, 'WebSocket'));
+
+    /* =========================================================================
+       13. STORAGE & PERSISTENSI
+       ========================================================================= */
+    check('Storage', 'localstorage', 'localStorage availability', function () { try { localStorage.setItem('__cap__', '1'); localStorage.removeItem('__cap__'); return true; } catch (e) { return false; } });
+    check('Storage', 'sessionstorage', 'sessionStorage availability', function () { try { sessionStorage.setItem('__cap__', '1'); sessionStorage.removeItem('__cap__'); return true; } catch (e) { return false; } });
+    check('Storage', 'indexeddb', 'IndexedDB availability', function () { return !!window.indexedDB; });
+    check('Storage', 'cachestorage', 'CacheStorage (caches)', function () { return 'caches' in window; });
+    check('Storage', 'opfs', 'Origin Private File System (OPFS)', function () { return !!(navigator.storage && typeof navigator.storage.getDirectory === 'function'); });
+    check('Storage', 'cookies', 'Cookies (document.cookie)', function () { return typeof document.cookie === 'string'; });
+    check('Storage', 'storage-estimate', 'navigator.storage.estimate()', function () { return !!(navigator.storage && typeof navigator.storage.estimate === 'function'); });
+    check('Storage', 'storage-persist', 'navigator.storage.persist()', function () { return !!(navigator.storage && typeof navigator.storage.persist === 'function'); });
+
+    /* =========================================================================
+       14. SECURITY LANJUTAN
+       ========================================================================= */
+    check('Security', 'permissions-api', 'Permissions API (navigator.permissions)', hasProp(navigator, 'permissions'));
+    check('Security', 'credentials', 'Credential Management API', hasProp(navigator, 'credentials'));
+    check('Security', 'webauthn', 'WebAuthn (PublicKeyCredential)', function () { return typeof window.PublicKeyCredential === 'function'; });
+    check('Security', 'iframe-sandbox', 'iframe sandbox attribute', function () { return 'sandbox' in document.createElement('iframe'); });
+
+    /* =========================================================================
+       15. SENSORS & HARDWARE LANJUTAN
+       ========================================================================= */
+    check('Sensors', 'geolocation', 'Geolocation API', hasProp(navigator, 'geolocation'));
+    check('Sensors', 'device-orientation', 'DeviceOrientationEvent', function () { return typeof window.DeviceOrientationEvent === 'function' || ('ondeviceorientation' in window); });
+    check('Sensors', 'device-motion', 'DeviceMotionEvent', function () { return typeof window.DeviceMotionEvent === 'function' || ('ondevicemotion' in window); });
+    check('Sensors', 'bluetooth', 'Web Bluetooth API', hasProp(navigator, 'bluetooth'));
+    check('Sensors', 'usb', 'WebUSB API', hasProp(navigator, 'usb'));
+    check('Sensors', 'serial', 'Web Serial API', hasProp(navigator, 'serial'));
+    check('Sensors', 'hid', 'WebHID API', hasProp(navigator, 'hid'));
+    check('Sensors', 'clipboard-read', 'Clipboard readText()', function () { return !!(navigator.clipboard && typeof navigator.clipboard.readText === 'function'); });
+    check('Sensors', 'idle-detection', 'Idle Detection API', function () { return typeof window.IdleDetector === 'function'; });
+    check('Sensors', 'contact-picker', 'Contact Picker API', hasProp(navigator, 'contacts'));
 
     // Compute Summary Stats
     var total = tests.length;

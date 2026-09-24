@@ -210,6 +210,18 @@ if ($shouldBuildDemo -and (Test-Path $stressDir)) {
                 }
             }
         }
+
+        # A2. Demo Modern Server Mode (127.0.0.1 for Secure Context)
+        $demoServer = Join-Path $OutDir 'demo-stress-testing-server.exe'
+        Write-Host "Membangun $demoServer (Server Mode)..." -ForegroundColor Yellow
+        $cmdServer = "`"$modernExe`" --build --dir `"$stressDir`" --server $iconArg --out `"$demoServer`" --title `"Respect Stress Testing Suite (Server Mode)`" --app-version `"$Version`""
+        cmd /c "$cmdServer"
+        if (Test-Path $demoServer) {
+            $bytes = (Get-Item $demoServer).Length
+            $mb = [math]::Round(($bytes / 1048576), 2)
+            Write-Host "  -> Selesai: $demoServer ($mb MB)" -ForegroundColor Green
+            $built += 'demo-stress-testing-server.exe'
+        }
     }
 
     # B. Demo Lite (Miniblink 49)

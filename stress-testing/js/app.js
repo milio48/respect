@@ -18,8 +18,17 @@
       counts: {},
       summaryApis: []
     },
-    benchmarks: {}
+    benchmarks: {},
+    interactions: [],
+    checklist: {},
+    manualNotes: '',
+    logs: { count: 0, events: [] }
   };
+
+  // Live event log (console + errors + runner) yang ikut diekspor ke laporan.
+  var eventLog = [];
+  var interactionResults = [];
+  var MAX_LOG_EVENTS = 2000;
 
   // History for interactive REPL
   var replHistory = [];
@@ -114,11 +123,100 @@
     runStorageIoStress: function () { return { writeOpsPerSec: 0, readOpsPerSec: 0 }; }
   };
 
+  var FeatureLabEngine = (typeof window !== 'undefined' && window.FeatureLabEngine) || {
+    list: function () { return []; },
+    get: function () { return null; },
+    run: function (id) {
+      return Promise.resolve({ id: id, category: 'unknown', name: id, pass: false, detail: 'FeatureLabEngine tidak tersedia', durationMs: '0' });
+    },
+    runAll: function () { return Promise.resolve([]); },
+    abort: function () {},
+    resetAbort: function () {}
+  };
+
   // =========================================================================
-  // SMART LOGGING & GLOBAL ERROR HANDLER
+  // SMART LOGGING, CONSOLE CAPTURE & GLOBAL ERROR HANDLER
   // =========================================================================
+  function timestampIso() {
+    try { return new Date().toISOString(); } catch (e) { return String(Date.now()); }
+  }
+
+  function recordEvent(level, source, message) {
+    try {
+      eventLog.push({
+        time: timestampIso(),
+        level: String(level || 'info'),
+        source: String(source || 'app'),
+        message: String(message === undefined ? '' : message).substring(0, 4000)
+      });
+      if (eventLog.length > MAX_LOG_EVENTS) {
+        eventLog.splice(0, eventLog.length - MAX_LOG_EVENTS);
+      }
+    } catch (e) {}
+  }
+
+  function stringifyArg(arg) {
+    if (arg === null) return 'null';
+    if (arg === undefined) return 'undefined';
+    var t = typeof arg;
+    if (t === 'string') return arg;
+    if (t === 'number' || t === 'boolean' || t === 'bigint') return String(arg);
+    if (t === 'function') return 'function ' + (arg.name || 'anonymous') + '()';
+    if (t === 'symbol') return arg.toString();
+    if (t === 'object') {
+      try { return JSON.stringify(arg); } catch (e) { return Object.prototype.toString.call(arg); }
+    }
+    return String(arg);
+  }
+
+  // Rekam console.log/info/warn/error/debug agar semua pesan engine ikut tersimpan.
+  function installConsoleCapture() {
+    if (typeof console === 'undefined') return;
+    var levels = ['log', 'info', 'warn', 'error', 'debug'];
+    for (var i = 0; i < levels.length; i++) {
+      (function (level) {
+        var original = console[level];
+        console[level] = function () {
+          var args = Array.prototype.slice.call(arguments);
+          var parts = [];
+          for (var a = 0; a < args.length; a++) parts.push(stringifyArg(args[a]));
+          recordEvent(level === 'log' ? 'info' : level, 'console', parts.join(' '));
+          if (typeof original === 'function') {
+            try { original.apply(console, args); } catch (e) {}
+          }
+        };
+      })(levels[i]);
+    }
+  }
+
+  function installGlobalHandlers() {
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+      var filename = url ? url.substring(url.lastIndexOf('/') + 1) : 'script';
+      var detail = msg + ' (' + filename + ':' + lineNo + (columnNo ? ':' + columnNo : '') + ')';
+      log('UNCAUGHT EXCEPTION: ' + detail, 'fail');
+      recordEvent('error', 'window.onerror', detail);
+      return false;
+    };
+
+    window.onunhandledrejection = function (event) {
+      var reason = event && event.reason ? (event.reason.message || String(event.reason)) : 'Unknown rejection';
+      log('UNHANDLED PROMISE REJECTION: ' + reason, 'fail');
+      recordEvent('error', 'unhandledrejection', reason);
+    };
+
+    // Jejak navigasi & lifecycle agar log lengkap.
+    try {
+      window.addEventListener('load', function () { recordEvent('info', 'lifecycle', 'window load event fired; href=' + window.location.href); });
+      document.addEventListener('visibilitychange', function () { recordEvent('info', 'lifecycle', 'visibilitychange -> ' + document.visibilityState); });
+      window.addEventListener('beforeunload', function () { recordEvent('info', 'lifecycle', 'beforeunload fired'); });
+      window.addEventListener('hashchange', function () { recordEvent('info', 'lifecycle', 'hashchange -> ' + window.location.hash); });
+      window.addEventListener('popstate', function () { recordEvent('info', 'lifecycle', 'popstate -> ' + window.location.href); });
+    } catch (e) {}
+  }
+
   function log(msg, type) {
     type = type || 'info';
+    recordEvent(type, 'suite', msg);
     var terminal = document.getElementById('terminalBody');
     if (!terminal) return;
 
@@ -145,18 +243,10 @@
     if (terminal) terminal.innerHTML = '';
   };
 
-  // Global uncaught error trapping for smart debugging
-  window.onerror = function (msg, url, lineNo, columnNo, error) {
-    var filename = url ? url.substring(url.lastIndexOf('/') + 1) : 'script';
-    var detail = msg + ' (' + filename + ':' + lineNo + (columnNo ? ':' + columnNo : '') + ')';
-    log('UNCAUGHT EXCEPTION: ' + detail, 'fail');
-    return false;
+  window.getRespectEventLog = function () {
+    return eventLog.slice();
   };
 
-  window.onunhandledrejection = function (event) {
-    var reason = event.reason ? (event.reason.message || String(event.reason)) : 'Unknown rejection';
-    log('UNHANDLED PROMISE REJECTION: ' + reason, 'fail');
-  };
 
   // =========================================================================
   // INTERACTIVE JAVASCRIPT REPL CONSOLE
@@ -261,6 +351,21 @@
   // =========================================================================
   function initTelemetry() {
     var env = FingerprintEngine.getEnvironment();
+    // Lengkapi info lokasi/origin nyata untuk routing diagnostics.
+    try {
+      env.origin = (window.location.origin !== undefined) ? window.location.origin : (window.location.protocol + '//' + window.location.host);
+      env.href = window.location.href;
+      env.protocol = window.location.protocol;
+      env.host = window.location.host;
+      env.hostname = window.location.hostname;
+      env.port = window.location.port;
+      env.pathname = window.location.pathname;
+      env.search = window.location.search;
+      env.hash = window.location.hash;
+      env.referrer = document.referrer || '';
+      env.title = document.title;
+      env.crossOriginIsolated = !!window.crossOriginIsolated;
+    } catch (e) {}
     auditReport.environment = env;
 
     var engineBadge = document.getElementById('hudEngineBadge');
@@ -904,26 +1009,110 @@
   // =========================================================================
   var currentReportFormat = 'json';
 
+  function snapshotReport() {
+    auditReport.timestamp = auditReport.timestamp || new Date().toISOString();
+    auditReport.interactions = interactionResults.slice();
+    auditReport.logs = { count: eventLog.length, events: eventLog.slice() };
+    if (typeof readManualChecklist === 'function') auditReport.checklist = readManualChecklist();
+    var notesEl = document.getElementById('manualNotesInput');
+    auditReport.manualNotes = notesEl ? notesEl.value : (auditReport.manualNotes || '');
+  }
+
+  function buildChecklistLines() {
+    var items = (typeof manualChecklistItems === 'function') ? manualChecklistItems() : [];
+    var state = (typeof readManualChecklist === 'function') ? readManualChecklist() : {};
+    var lines = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var s = state[it.id];
+      var mark = s && s.done ? '[x]' : '[ ]';
+      lines.push('- ' + mark + ' ' + it.label + (s && s.done && s.at ? ' _(diverifikasi ' + s.at + ')_' : ''));
+    }
+    return lines;
+  }
+
   function generateMarkdownText() {
+    snapshotReport();
+    var cap = auditReport.capabilities || {};
+    var failed = (cap.tests || []).filter(function (t) { return !t.pass; });
     var md = '# ⚡ Respect Browser Capability & Stress Audit Report\n\n' +
       '- **Waktu Audit**: `' + auditReport.timestamp + '`\n' +
       '- **Engine Flavor**: `' + (auditReport.environment.engineFlavor || 'Unknown') + '`\n' +
       '- **Platform**: `' + (auditReport.environment.platform || 'Unknown') + '`\n' +
       '- **User-Agent**: `' + (auditReport.environment.userAgent || 'Unknown') + '`\n' +
-      '- **Origin**: `' + (window.location.origin || 'N/A') + '`\n' +
+      '- **Origin**: `' + (auditReport.environment.origin || window.location.origin || 'N/A') + '`\n' +
+      '- **Location**: `' + (auditReport.environment.href || window.location.href) + '`\n' +
+      '- **Secure Context**: `' + (auditReport.environment.isSecureContext ? 'YES' : 'NO') + '` | **Cross-Origin Isolated**: `' + (!!auditReport.environment.crossOriginIsolated) + '`\n' +
       '- **Hardware**: `' + (auditReport.hardware.cpuCores || 'N/A') + ' Cores`, `' + (auditReport.hardware.deviceMemoryGB || 'N/A') + ' RAM`\n' +
       '- **Display**: `' + (auditReport.hardware.screenWidth || 0) + 'x' + (auditReport.hardware.screenHeight || 0) + ' (@' + (auditReport.hardware.pixelRatio || 1) + 'x)`\n' +
       '- **GPU Unmasked**: `' + (auditReport.webgl.unmaskedRenderer || 'N/A') + '` (' + (auditReport.webgl.unmaskedVendor || 'N/A') + ')\n' +
       '- **Canvas Hash**: `' + (auditReport.fingerprints.canvas ? auditReport.fingerprints.canvas.hash : 'N/A') + '`\n' +
       '- **Audio Hash**: `' + (auditReport.fingerprints.audio ? auditReport.fingerprints.audio.hash : 'N/A') + '`\n' +
-      '- **Capability Score**: **' + (auditReport.capabilities.percentage || '0') + '%** (' + (auditReport.capabilities.passed || 0) + ' / ' + (auditReport.capabilities.total || 0) + ')\n' +
-      '- **Total Global APIs**: **' + (auditReport.apiDump.counts ? auditReport.apiDump.counts.total : 'N/A') + '**\n\n' +
-      '---\n*Generated by Respect Browser Stress Testing Suite*';
+      '- **Capability Score**: **' + (cap.percentage || '0') + '%** (' + (cap.passed || 0) + ' / ' + (cap.total || 0) + ')\n' +
+      '- **Total Global APIs**: **' + (auditReport.apiDump.counts ? auditReport.apiDump.counts.total : 'N/A') + '**\n' +
+      '- **Interaksi Teruji**: ' + (auditReport.interactions.length) + ' aksi\n' +
+      '- **Log Terekam**: ' + (auditReport.logs.count) + ' event\n\n';
+
+    if (failed.length > 0) {
+      md += '## ❌ Fitur Standar Web yang Gagal (' + failed.length + ')\n\n';
+      for (var i = 0; i < failed.length; i++) {
+        md += '- **[' + failed[i].category + ']** ' + failed[i].name + ' (`' + failed[i].id + '`) — ' + failed[i].note + '\n';
+      }
+      md += '\n';
+    }
+
+    if (auditReport.interactions.length > 0) {
+      md += '## 🧪 Hasil Uji Interaktif & Routing\n\n';
+      md += '| Kategori | Aksi | Status | Detail | Waktu |\n|---|---|---|---|---|\n';
+      for (var j = 0; j < auditReport.interactions.length; j++) {
+        var r = auditReport.interactions[j];
+        md += '| ' + r.category + ' | ' + r.name + ' | ' + (r.pass ? '✅ PASS' : '❌ FAIL') + ' | ' + String(r.detail).replace(/\|/g, '\\|') + ' | ' + r.durationMs + ' ms |\n';
+      }
+      md += '\n';
+    }
+
+    var checklistLines = buildChecklistLines();
+    if (checklistLines.length > 0) {
+      md += '## 📋 Checklist Verifikasi Manual\n\n' + checklistLines.join('\n') + '\n\n';
+    }
+
+    if (auditReport.manualNotes) {
+      md += '## 📝 Catatan Manual Penguji\n\n' + auditReport.manualNotes + '\n\n';
+    }
+
+    md += '---\n*Generated by Respect Browser Stress Testing Suite*\n';
     return md;
   }
 
   function generateJsonText() {
+    snapshotReport();
     return JSON.stringify(auditReport, null, 2);
+  }
+
+  function generateLogText() {
+    snapshotReport();
+    var lines = [];
+    lines.push('========================================================');
+    lines.push(' RESPECT STRESS TESTING - EVENT LOG');
+    lines.push('========================================================');
+    lines.push('Waktu       : ' + auditReport.timestamp);
+    lines.push('Engine      : ' + (auditReport.environment.engineFlavor || 'Unknown'));
+    lines.push('Origin      : ' + (auditReport.environment.origin || 'N/A'));
+    lines.push('Location    : ' + (auditReport.environment.href || 'N/A'));
+    lines.push('User-Agent  : ' + (auditReport.environment.userAgent || 'Unknown'));
+    lines.push('SecureCtx   : ' + (auditReport.environment.isSecureContext ? 'YES' : 'NO'));
+    lines.push('Total Log   : ' + auditReport.logs.count + ' event');
+    lines.push('--------------------------------------------------------');
+    var evts = auditReport.logs.events;
+    for (var i = 0; i < evts.length; i++) {
+      var e = evts[i];
+      lines.push('[' + e.time + '] [' + String(e.level).toUpperCase() + '] (' + e.source + ') ' + e.message);
+    }
+    lines.push('--------------------------------------------------------');
+    lines.push('CATATAN MANUAL:');
+    lines.push(auditReport.manualNotes || '(kosong)');
+    lines.push('========================================================');
+    return lines.join('\r\n');
   }
 
   window.openReportModal = function (format) {
@@ -933,19 +1122,26 @@
     var title = document.getElementById('modalReportTitle');
     var tabJson = document.getElementById('modalTabJson');
     var tabMd = document.getElementById('modalTabMd');
+    var tabLog = document.getElementById('modalTabLog');
 
     if (!modal || !area) return;
+
+    if (tabJson) tabJson.className = 'btn btn-sm';
+    if (tabMd) tabMd.className = 'btn btn-sm';
+    if (tabLog) tabLog.className = 'btn btn-sm';
 
     if (currentReportFormat === 'markdown') {
       area.value = generateMarkdownText();
       if (title) title.textContent = '📋 Ringkasan Laporan Markdown';
       if (tabMd) tabMd.className = 'btn btn-sm btn-primary';
-      if (tabJson) tabJson.className = 'btn btn-sm';
+    } else if (currentReportFormat === 'text') {
+      area.value = generateLogText();
+      if (title) title.textContent = '🖥️ Log Mentah (Console + Event + Catatan)';
+      if (tabLog) tabLog.className = 'btn btn-sm btn-primary';
     } else {
       area.value = generateJsonText();
       if (title) title.textContent = '💾 Laporan Audit Lengkap (JSON)';
       if (tabJson) tabJson.className = 'btn btn-sm btn-primary';
-      if (tabMd) tabMd.className = 'btn btn-sm';
     }
 
     modal.classList.add('open');
@@ -1018,8 +1214,10 @@
 
     var content = area.value;
     var isMd = currentReportFormat === 'markdown';
-    var mime = isMd ? 'text/markdown;charset=utf-8' : 'application/json;charset=utf-8';
-    var filename = isMd ? ('respect-report-' + Date.now() + '.md') : ('respect-audit-' + Date.now() + '.json');
+    var isLog = currentReportFormat === 'text';
+    var mime = isMd ? 'text/markdown;charset=utf-8' : (isLog ? 'text/plain;charset=utf-8' : 'application/json;charset=utf-8');
+    var ext = isMd ? '.md' : (isLog ? '.log' : '.json');
+    var filename = 'respect-audit-' + Date.now() + ext;
 
     try {
       var blob = new Blob([content], { type: mime });
@@ -1051,9 +1249,231 @@
   };
 
   // =========================================================================
+  // FEATURE LAB / QUICK RUNNER
+  // Satu tempat terpusat untuk seluruh aksi uji (otomatis & yang butuh klik).
+  // =========================================================================
+  var CHECKLIST_KEY = '__respect_manual_checklist__';
+  var runnerRunning = false;
+
+  function manualChecklistItems() {
+    return [
+      { id: 'chk-alert', label: 'alert() muncul sebagai dialog & tidak crash' },
+      { id: 'chk-confirm', label: 'confirm() mengembalikan OK/Cancel dengan benar' },
+      { id: 'chk-prompt', label: 'prompt() menerima input & mengembalikan teks' },
+      { id: 'chk-camera-stop', label: 'Tombol Stop Kamera TIDAK menutup paksa (force close)' },
+      { id: 'chk-mic', label: 'Mikrofon & oscilloscope berjalan' },
+      { id: 'chk-tts', label: 'TTS mengucapkan teks' },
+      { id: 'chk-file-input', label: 'Dialog file picker terbuka & file terbaca' },
+      { id: 'chk-clipboard', label: 'Copy/paste ke OS clipboard berhasil' },
+      { id: 'chk-popup', label: 'window.open / popup berjalan' },
+      { id: 'chk-fetch-local', label: 'fetch() relatif (virtual host/local server) berhasil' },
+      { id: 'chk-reload-router', label: 'Reload/navigasi ulang tidak kehilangan sesi' },
+      { id: 'chk-no-disk', label: 'Tidak ada file ekstra di disk saat runtime' }
+    ];
+  }
+
+  function readManualChecklist() {
+    try {
+      var raw = localStorage.getItem(CHECKLIST_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+
+  function writeManualChecklist(state) {
+    try { localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function renderChecklist() {
+    var box = document.getElementById('manualChecklistContainer');
+    if (!box) return;
+    var items = manualChecklistItems();
+    var state = readManualChecklist();
+    box.innerHTML = '';
+    for (var i = 0; i < items.length; i++) {
+      (function (it) {
+        var row = document.createElement('label');
+        row.className = 'check-row';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.id = it.id;
+        cb.checked = !!(state[it.id] && state[it.id].done);
+        cb.addEventListener('change', function () {
+          var s = readManualChecklist();
+          if (cb.checked) s[it.id] = { done: true, at: new Date().toISOString() };
+          else delete s[it.id];
+          writeManualChecklist(s);
+          log('Checklist "' + it.label + '" => ' + (cb.checked ? 'TERVERIFIKASI' : 'belum diverifikasi'), cb.checked ? 'ok' : 'info');
+        });
+        var span = document.createElement('span');
+        span.textContent = it.label;
+        row.appendChild(cb);
+        row.appendChild(span);
+        box.appendChild(row);
+      })(items[i]);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function renderFeatureTables() {
+    var actions = FeatureLabEngine.list();
+    var autoBody = document.getElementById('runnerAutoBody');
+    var manualBody = document.getElementById('runnerManualBody');
+    if (autoBody) autoBody.innerHTML = '';
+    if (manualBody) manualBody.innerHTML = '';
+
+    for (var i = 0; i < actions.length; i++) {
+      (function (a) {
+        var tr = document.createElement('tr');
+
+        var tdCat = document.createElement('td');
+        tdCat.innerHTML = '<span class="code-pill">' + escapeHtml(a.category) + '</span>';
+
+        var tdName = document.createElement('td');
+        tdName.innerHTML = '<strong>' + escapeHtml(a.name) + '</strong>';
+
+        var tdStatus = document.createElement('td');
+        tdStatus.id = 'runner-status-' + a.id;
+        tdStatus.innerHTML = '<span class="muted">Belum diuji</span>';
+
+        var tdAct = document.createElement('td');
+        var btn = document.createElement('button');
+        btn.className = 'btn btn-sm ' + (a.kind === 'manual' ? 'btn-success' : 'btn-primary');
+        btn.textContent = a.kind === 'manual' ? '👆 Jalankan' : '▶ Jalankan';
+        btn.addEventListener('click', function () { runSingleAction(a.id, btn); });
+        tdAct.appendChild(btn);
+        if (a.danger) {
+          var warn = document.createElement('span');
+          warn.className = 'status-badge warn';
+          warn.style.marginLeft = '6px';
+          warn.textContent = 'DIALOG';
+          tdAct.appendChild(warn);
+        }
+
+        tr.appendChild(tdCat);
+        tr.appendChild(tdName);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdAct);
+        var target = (a.kind === 'manual') ? manualBody : autoBody;
+        if (target) target.appendChild(tr);
+      })(actions[i]);
+    }
+  }
+
+  function markRunnerStatus(res) {
+    var td = document.getElementById('runner-status-' + res.id);
+    if (!td) return;
+    td.innerHTML = '<span class="status-badge ' + (res.pass ? 'pass' : 'fail') + '">' +
+      (res.pass ? 'PASS' : 'FAIL') + '</span> <small class="muted">' +
+      escapeHtml(String(res.detail).substring(0, 140)) + ' (' + res.durationMs + 'ms)</small>';
+  }
+
+  function recordInteraction(res) {
+    var found = -1;
+    for (var i = 0; i < interactionResults.length; i++) {
+      if (interactionResults[i].id === res.id) { found = i; break; }
+    }
+    if (found >= 0) interactionResults[found] = res;
+    else interactionResults.push(res);
+    markRunnerStatus(res);
+    updateRunnerCounters();
+  }
+
+  function updateRunnerCounters() {
+    var total = interactionResults.length;
+    var pass = 0;
+    for (var i = 0; i < total; i++) { if (interactionResults[i].pass) pass++; }
+    var elTotal = document.getElementById('runnerTotal');
+    var elPass = document.getElementById('runnerPassed');
+    var elFail = document.getElementById('runnerFailed');
+    if (elTotal) elTotal.textContent = total;
+    if (elPass) elPass.textContent = pass;
+    if (elFail) elFail.textContent = total - pass;
+  }
+
+  function runSingleAction(id, btn) {
+    var a = FeatureLabEngine.get(id) || { name: id };
+    if (btn) btn.disabled = true;
+    log('Menjalankan aksi: ' + a.name + ' [' + id + ']', 'info');
+    return FeatureLabEngine.run(id, function (res) {
+      recordInteraction(res);
+      log((res.pass ? 'PASS' : 'FAIL') + ' - ' + a.name + ': ' + res.detail + ' (' + res.durationMs + ' ms)', res.pass ? 'ok' : 'fail');
+    }).then(function (res) {
+      if (btn) btn.disabled = false;
+      return res;
+    });
+  }
+
+  window.runAllFeatureTests = function (includeManual) {
+    if (runnerRunning) { log('Runner sedang berjalan, tunggu selesai.', 'warn'); return; }
+    runnerRunning = true;
+    var queue = FeatureLabEngine.list().filter(function (a) { return includeManual ? true : a.kind !== 'manual'; });
+    var progress = document.getElementById('runnerProgress');
+    var progressWrap = document.getElementById('runnerProgressWrap');
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (progress) progress.style.width = '0%';
+    log('▶ Menjalankan ' + queue.length + ' aksi ' + (includeManual ? '(termasuk manual/dialog)' : 'otomatis') + ' secara berurutan...', 'info');
+
+    var doneCount = 0;
+    FeatureLabEngine.runAll(function (res) {
+      doneCount++;
+      recordInteraction(res);
+      log('[' + doneCount + '/' + queue.length + '] ' + (res.pass ? 'PASS' : 'FAIL') + ' ' + res.name + ' - ' + res.detail, res.pass ? 'ok' : 'fail');
+      if (progress) progress.style.width = Math.round((doneCount / queue.length) * 100) + '%';
+    }, { includeManual: includeManual }).then(function (results) {
+      runnerRunning = false;
+      var pass = 0;
+      for (var i = 0; i < results.length; i++) { if (results[i].pass) pass++; }
+      log('✔ Runner selesai: ' + pass + '/' + results.length + ' PASS. Buka tab Laporan untuk mengekspor.', pass === results.length ? 'ok' : 'warn');
+    });
+  };
+
+  window.stopFeatureTests = function () {
+    FeatureLabEngine.abort();
+    log('⏹ Permintaan stop dikirim (aksi yang sedang berjalan diselesaikan lebih dulu).', 'warn');
+  };
+
+  window.resetFeatureTests = function () {
+    interactionResults = [];
+    auditReport.interactions = [];
+    renderFeatureTables();
+    updateRunnerCounters();
+    log('Runner direset.', 'info');
+  };
+
+  function initFeatureLab() {
+    renderFeatureTables();
+    updateRunnerCounters();
+    renderChecklist();
+
+    var notesEl = document.getElementById('manualNotesInput');
+    if (notesEl) {
+      try { notesEl.value = localStorage.getItem('__respect_manual_notes__') || ''; } catch (e) {}
+      notesEl.addEventListener('input', function () {
+        try { localStorage.setItem('__respect_manual_notes__', notesEl.value); } catch (e) {}
+      });
+    }
+
+    var interceptorEl = document.getElementById('runnerInterceptor');
+    if (interceptorEl) {
+      var bits = [];
+      if (typeof window.mbQuery === 'function') bits.push('mbQuery');
+      if (window.ipc && typeof window.ipc.invoke === 'function') bits.push('ipc');
+      if (typeof window.fetch === 'function') bits.push('fetch');
+      if (typeof window.Worker === 'function') bits.push('Worker');
+      interceptorEl.textContent = bits.length ? bits.join(' + ') : 'none';
+    }
+  }
+
+  // =========================================================================
   // BOOTSTRAP INITIALIZATION
   // =========================================================================
   window.addEventListener('DOMContentLoaded', function () {
+    installConsoleCapture();
+    installGlobalHandlers();
     log('Menginisialisasi Respect Browser Stress Testing Suite...', 'info');
     try { initTabs(); } catch (e) { log('Init Tabs warning: ' + (e.message || e), 'warn'); }
     try { initTelemetry(); } catch (e) { log('Init Telemetry warning: ' + (e.message || e), 'warn'); }
@@ -1062,8 +1482,9 @@
     try { initFingerprints(); } catch (e) { log('Init Fingerprints warning: ' + (e.message || e), 'warn'); }
     try { initMediaLab(); } catch (e) { log('Init MediaLab warning: ' + (e.message || e), 'warn'); }
     try { initStressLab(); } catch (e) { log('Init StressLab warning: ' + (e.message || e), 'warn'); }
+    try { initFeatureLab(); } catch (e) { log('Init FeatureLab warning: ' + (e.message || e), 'warn'); }
     try { initRepl(); } catch (e) { log('Init REPL warning: ' + (e.message || e), 'warn'); }
-    log('Seluruh subsistem siap. Buka tab atau ketik perintah di konsol REPL untuk pengujian interaktif.', 'ok');
+    log('Seluruh subsistem siap. Gunakan tab "Uji Interaktif" untuk menjalankan semua aksi uji.', 'ok');
   });
 
 })();

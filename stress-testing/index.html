@@ -41,6 +41,7 @@
     <div class="hud-actions">
       <button class="btn btn-sm btn-primary" onclick="openReportModal('json')">💾 Laporan JSON</button>
       <button class="btn btn-sm" onclick="openReportModal('markdown')">📋 Ringkasan MD</button>
+      <button class="btn btn-sm" onclick="openReportModal('text')">🖥️ Log Mentah</button>
     </div>
   </header>
 
@@ -59,13 +60,17 @@
       <span>🔍 Fingerprint & Hardware</span>
     </button>
     <button class="tab-btn" data-tab="tab-capability">
-      <span>🎯 120+ Capability Matrix</span>
+      <span>🎯 170+ Capability Matrix</span>
     </button>
     <button class="tab-btn" data-tab="tab-medialab">
       <span>🎬 Camera, Mic & Media</span>
     </button>
     <button class="tab-btn" data-tab="tab-stress">
       <span>⚡ Stress Benchmarks</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-runner">
+      <span>🧪 Uji Interaktif & Otomasi</span>
+      <span class="tab-badge" id="runnerBadge">Quick</span>
     </button>
   </nav>
 
@@ -84,7 +89,7 @@
           Sistem pengujian Respect Browser terbagi menjadi 2 jenis pengujian:
         </p>
         <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
-          <span class="badge-auto">⚡ OTOMATIS: 120+ Web Standards Matrix</span>
+          <span class="badge-auto">⚡ OTOMATIS: 170+ Web Standards Matrix</span>
           <span class="badge-auto">⚡ OTOMATIS: Unmasked GPU & Hardware Probe</span>
           <span class="badge-auto">⚡ OTOMATIS: Dump 1000+ Window & Prototype APIs</span>
           <span class="badge-auto">⚡ OTOMATIS: Canvas & Audio Fingerprint Hashes</span>
@@ -95,9 +100,15 @@
           <span class="badge-interactive">👆 KLIK USER: DOM Thrashing (5,000 Nodes)</span>
           <span class="badge-interactive">👆 KLIK USER: Alokasi 200 MB RAM Buffer</span>
           <span class="badge-interactive">👆 KLIK USER: Background Web Worker Benchmark</span>
+          <span class="badge-interactive">👆 KLIK USER: Fetch, Routing & JS Bridge (tab Uji Interaktif)</span>
+          <span class="badge-interactive">👆 KLIK USER: alert / confirm / prompt dialog native</span>
+          <span class="badge-interactive">👆 KLIK USER: Input, Form, Clipboard, Drag &amp; Drop</span>
         </div>
         <p class="muted" style="font-size: 11px;">
           *Catatan Keamanan: Kamera, Mikrofon, dan Web Audio sengaja memerlukan interaksi (klik) pengguna karena kebijakan autoplay & permission sandbox browser Windows.
+        </p>
+        <p class="muted" style="font-size: 11px; margin-top: 4px;">
+          💡 Panduan: fitur <strong>Secure Context</strong> (crypto.subtle, crypto.randomUUID, navigator.clipboard, ServiceWorker, navigator.deviceMemory) hanya terbuka bila aplikasi dijalankan lewat <strong>In-Memory Local Server</strong> (origin <code>http://127.0.0.1</code>), bukan Virtual Host <code>http://app</code>. Bandingkan hasil di tab <strong>Uji Interaktif</strong> pada kedua mode lalu ekspor log untuk melihat selisihnya.
         </p>
       </div>
 
@@ -343,7 +354,7 @@
     <div id="tab-capability" class="tab-pane">
       <div class="card">
         <div class="card-header">
-          <h3>🎯 120+ Web Standards Diagnostic Matrix</h3>
+          <h3>🎯 170+ Web Standards Diagnostic Matrix</h3>
           <div class="actions">
             <button class="btn btn-sm btn-primary" onclick="CapabilityEngine.runAllTests();">🔄 Jalankan Ulang Test</button>
           </div>
@@ -541,6 +552,120 @@
       </div>
     </div>
 
+    <!-- 7. INTERACTIVE FEATURE LAB / QUICK RUNNER TAB -->
+    <div id="tab-runner" class="tab-pane">
+
+      <div class="guide-banner">
+        <h4>🧪 Pusat Uji Interaktif (Quick Runner)</h4>
+        <p style="color: #cbd5e1; font-size: 12px; margin-bottom: 6px;">
+          Semua aksi yang membutuhkan klik, dialog, atau interaksi dikumpulkan di satu tempat ini.
+          Jalankan per-aksi memakai tombol <em>Jalankan</em>, atau tekan
+          <strong>▶ Jalankan Semua (Otomatis)</strong> untuk mengeksekusi seluruh uji aman secara berurutan.
+          Setiap hasil otomatis tercatat di log dan ikut diekspor ke laporan (JSON / Markdown / Log Mentah).
+        </p>
+        <p class="muted" style="font-size: 11px;">
+          Aksi bertanda <span class="status-badge warn">DIALOG</span> membuka alert/confirm/prompt/popup native.
+          Aksi tersebut dapat memblokir sementara UI engine — jalankan satu per satu bila ingin aman.
+        </p>
+      </div>
+
+      <div class="card highlight">
+        <div class="card-header">
+          <h3>⚙️ Kontrol Otomasi</h3>
+          <div class="actions">
+            <button class="btn btn-sm btn-primary" onclick="runAllFeatureTests(false)">▶ Jalankan Semua (Otomatis)</button>
+            <button class="btn btn-sm" onclick="runAllFeatureTests(true)">🧭 Termasuk Dialog Manual</button>
+            <button class="btn btn-sm btn-danger" onclick="stopFeatureTests()">⏹ Stop</button>
+            <button class="btn btn-sm" onclick="resetFeatureTests()">🔁 Reset</button>
+          </div>
+        </div>
+        <div class="grid-4">
+          <div class="card stat-tile">
+            <span class="stat-label">Aksi Teruji</span>
+            <span class="stat-value info" id="runnerTotal">0</span>
+            <span class="stat-sub">Aksi yang sudah dijalankan</span>
+          </div>
+          <div class="card stat-tile">
+            <span class="stat-label">Lulus</span>
+            <span class="stat-value ok" id="runnerPassed">0</span>
+            <span class="stat-sub">Berjalan sesuai harapan</span>
+          </div>
+          <div class="card stat-tile">
+            <span class="stat-label">Gagal</span>
+            <span class="stat-value fail" id="runnerFailed">0</span>
+            <span class="stat-sub">Ditolak / tidak didukung</span>
+          </div>
+          <div class="card stat-tile">
+            <span class="stat-label">Interceptor</span>
+            <span class="stat-value warn" style="font-size: 14px;" id="runnerInterceptor">--</span>
+            <span class="stat-sub">mbQuery / ipc / fetch</span>
+          </div>
+        </div>
+        <div id="runnerProgressWrap" class="meter-bar" style="display: none;"><div class="meter-fill green" id="runnerProgress"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🤖 Aksi Otomatis (tanpa interaksi)</h3>
+        </div>
+        <div class="table-wrapper" style="max-height: 480px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Kategori</th>
+                <th style="width: 38%;">Aksi Uji</th>
+                <th style="width: 34%;">Hasil</th>
+                <th style="width: 16%;">Jalankan</th>
+              </tr>
+            </thead>
+            <tbody id="runnerAutoBody"><!-- Populated by JS --></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>👆 Aksi Interaktif (perlu klik / dialog native)</h3>
+        </div>
+        <div class="table-wrapper" style="max-height: 520px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Kategori</th>
+                <th style="width: 38%;">Aksi Uji</th>
+                <th style="width: 34%;">Hasil</th>
+                <th style="width: 16%;">Jalankan</th>
+              </tr>
+            </thead>
+            <tbody id="runnerManualBody"><!-- Populated by JS --></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>📋 Checklist Verifikasi Manual</h3>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">
+            Tandai setelah memverifikasi perilaku engine secara manual. Status tersimpan otomatis dan ikut dilampirkan ke laporan.
+          </p>
+          <div id="manualChecklistContainer" class="checklist-box"><!-- Populated by JS --></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>📝 Catatan Manual Penguji</h3>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">
+            Catat kejadian penting (contoh: "saat klik Stop Camera, aplikasi force close"). Ikut tersimpan dan diekspor ke laporan.
+          </p>
+          <textarea id="manualNotesInput" class="modal-textarea" style="height: 200px;" placeholder="Tulis temuan manual di sini..."></textarea>
+        </div>
+      </div>
+
+    </div>
+
     <!-- TERMINAL / CONSOLE LOG HUD & INTERACTIVE REPL -->
     <div class="terminal-card">
       <div class="terminal-header">
@@ -569,6 +694,7 @@
         <div style="display: flex; gap: 8px;">
           <button id="modalTabJson" class="btn btn-sm btn-primary" onclick="switchReportFormat('json')">Format JSON</button>
           <button id="modalTabMd" class="btn btn-sm" onclick="switchReportFormat('markdown')">Format Markdown</button>
+          <button id="modalTabLog" class="btn btn-sm" onclick="switchReportFormat('text')">Log Mentah</button>
           <button class="btn btn-sm" onclick="closeReportModal()">✕ Tutup</button>
         </div>
       </div>
@@ -597,6 +723,7 @@
   <script src="js/capability.js"></script>
   <script src="js/media.js"></script>
   <script src="js/stress.js"></script>
+  <script src="js/interaction.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
