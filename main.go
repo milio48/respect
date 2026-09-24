@@ -54,7 +54,8 @@ func main() {
 	versionFlag := flag.Bool("version", false, "Tampilkan informasi versi aplikasi")
 	flag.BoolVar(versionFlag, "v", false, "Tampilkan informasi versi aplikasi (shorthand)")
 	buildFlag := flag.Bool("build", false, "Bangun file EXE baru dari konfigurasi")
-	mode := flag.String("mode", "url", "Mode tampilan: url | html | file | app")
+	mode := flag.String("mode", "url", "Mode tampilan: url | html | file | app | server")
+	serverFlag := flag.Bool("server", false, "Jalankan via in-memory local HTTP server (127.0.0.1) untuk mengaktifkan Secure Context (WebCrypto & Clipboard)")
 	source := flag.String("source", "", "Sumber konten: URL / kode HTML / path file lokal")
 	dirFlag := flag.String("dir", "", "Path direktori frontend web untuk dikemas ke dalam EXE (mode virtual host V2)")
 	out := flag.String("out", "demo.exe", "Nama output file EXE")
@@ -78,14 +79,14 @@ func main() {
 			outName += ".exe"
 		}
 
-		// A. Mode Direktori (V2: In-Memory TAR Virtual Host)
+		// A. Mode Direktori (V2: In-Memory TAR Virtual Host atau Local Server)
 		targetDir := strings.TrimSpace(*dirFlag)
-		if targetDir != "" || *mode == "app" || *mode == "dir" {
+		if targetDir != "" || *mode == "app" || *mode == "dir" || *mode == "server" || *serverFlag {
 			if targetDir == "" {
 				targetDir = strings.TrimSpace(*source)
 			}
 			if targetDir == "" {
-				fmt.Fprintln(os.Stderr, "error: parameter --dir atau --source direktori wajib diisi untuk mode app/dir")
+				fmt.Fprintln(os.Stderr, "error: parameter --dir atau --source direktori wajib diisi untuk mode app/dir/server")
 				os.Exit(1)
 			}
 
@@ -114,8 +115,13 @@ func main() {
 				os.Exit(1)
 			}
 
+			appMode := "app"
+			if *mode == "server" || *serverFlag {
+				appMode = "server"
+			}
+
 			cfg := payload.Config{
-				Mode:       "app",
+				Mode:       appMode,
 				Source:     "index.html",
 				Title:      *title,
 				Width:      *width,
@@ -125,6 +131,7 @@ func main() {
 				AppVersion: *appVer,
 				Company:    *company,
 				Copyright:  *copyright,
+				ServerMode: *serverFlag || *mode == "server",
 			}
 
 			if err := payload.BuildSelfV2(cfg, files); err != nil {
@@ -199,6 +206,9 @@ func main() {
 
 	// 2. Cek apakah binary ini sendiri memiliki payload trailer (Runtime Mode V1 atau V2)
 	if p, err := payload.ReadPayload(); err == nil {
+		if *serverFlag || *mode == "server" {
+			p.Config.ServerMode = true
+		}
 		runtime.Run(p)
 		return
 	}

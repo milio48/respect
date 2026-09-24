@@ -33,6 +33,7 @@ type Config struct {
 	AppVersion string `json:"app_version,omitempty"` // e.g. "1.0.0"
 	Company    string `json:"company,omitempty"`     // e.g. "PT Solusi Digital"
 	Copyright  string `json:"copyright,omitempty"`   // e.g. "Copyright © 2026 PT Solusi Digital"
+	ServerMode bool   `json:"server_mode,omitempty"` // Gunakan in-memory HTTP server lokal (127.0.0.1) untuk Secure Context & WebCrypto
 }
 
 // Defaults mengisi nilai default kalau kosong.

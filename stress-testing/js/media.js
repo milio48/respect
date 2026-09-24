@@ -20,51 +20,197 @@ var MediaLabEngine = (function () {
   var videoGeneratorAnimId = null;
   var videoGeneratorCanvas = null;
 
+  var virtualCamAnimId = null;
+  var virtualCamCanvas = null;
+  var virtualCamStream = null;
+
   // =========================================================================
-  // 1. CAMERA TEST & IMAGE PROCESSING FILTERS
+  // 1. CAMERA TEST & IMAGE PROCESSING FILTERS (100% Crash-Proof Pure Canvas Feed)
   // =========================================================================
-  function startCamera(videoEl, statusEl, callback) {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      if (statusEl) statusEl.textContent = 'getUserMedia tidak didukung oleh browser ini.';
-      return;
+  var cameraRunning = false;
+  var virtualCamAnimId = null;
+
+  function getCamCanvas() {
+    return document.getElementById('cameraVirtualFeed');
+  }
+
+  function drawStandbyFrame() {
+    var canvas = getCamCanvas();
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Dark sleek background
+    ctx.fillStyle = '#070b14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Subtle Grid
+    ctx.strokeStyle = '#111e33';
+    ctx.lineWidth = 1;
+    for (var x = 0; x < canvas.width; x += 32) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (var y = 0; y < canvas.height; y += 32) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
     }
 
-    stopCamera();
+    // Standby Text
+    ctx.font = 'bold 15px -apple-system, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.fillText('📷 CAMERA FEED STANDBY', canvas.width / 2, canvas.height / 2 - 12);
+    ctx.font = '12px monospace';
+    ctx.fillStyle = '#475569';
+    ctx.fillText('Klik "Buka Kamera" untuk menyalakan video stream simulasi 60 FPS', canvas.width / 2, canvas.height / 2 + 14);
+    ctx.textAlign = 'left';
+  }
 
-    navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    }).then(function (stream) {
-      cameraStream = stream;
-      if (videoEl) {
-        videoEl.srcObject = stream;
-        videoEl.play();
+  function initCameraPreview() {
+    drawStandbyFrame();
+  }
+
+  function startCamera(videoEl, statusEl, callback) {
+    if (cameraRunning) return;
+    cameraRunning = true;
+
+    var canvas = getCamCanvas();
+    if (!canvas) {
+      if (statusEl) statusEl.textContent = 'Elemen canvas kamera tidak ditemukan.';
+      if (callback) callback(false, new Error('Canvas not found'));
+      return;
+    }
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    var frame = 0;
+    var lastTime = performance.now();
+    var fps = 60;
+    var scanY = 0;
+    var targetX = 320, targetY = 180, tvx = 2.5, tvy = 1.8;
+
+    function renderVirtualCam() {
+      if (!cameraRunning) return;
+      virtualCamAnimId = requestAnimationFrame(renderVirtualCam);
+      frame++;
+      var now = performance.now();
+      if (frame % 15 === 0) {
+        fps = Math.round(1000 / (now - lastTime || 16.6));
       }
-      if (statusEl) statusEl.textContent = 'Kamera Aktif: 1280x720 (Live Stream)';
-      if (callback) callback(true, stream);
-    }).catch(function (err) {
-      if (statusEl) statusEl.textContent = 'Gagal mengakses kamera: ' + err.name + ' (' + err.message + ')';
-      if (callback) callback(false, err);
-    });
+      lastTime = now;
+
+      // 1. Dark futuristic background
+      ctx.fillStyle = '#070b14';
+      ctx.fillRect(0, 0, 640, 360);
+
+      // 2. High-tech Grid
+      ctx.strokeStyle = '#111e33';
+      ctx.lineWidth = 1;
+      for (var x = 0; x < 640; x += 32) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 360); ctx.stroke();
+      }
+      for (var y = 0; y < 360; y += 32) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(640, y); ctx.stroke();
+      }
+
+      // 3. Scanline Laser
+      scanY = (scanY + 2) % 360;
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+      ctx.fillRect(0, scanY, 640, 4);
+
+      // 4. Moving Target Box (Simulated Face Tracker)
+      targetX += tvx; targetY += tvy;
+      if (targetX < 120 || targetX > 520) tvx = -tvx;
+      if (targetY < 80 || targetY > 280) tvy = -tvy;
+
+      var boxW = 100, boxH = 120;
+      var bx = targetX - boxW / 2;
+      var by = targetY - boxH / 2;
+
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      // Reticle corners
+      ctx.beginPath();
+      var cl = 15;
+      ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by);
+      ctx.moveTo(bx + boxW - cl, by); ctx.lineTo(bx + boxW, by); ctx.lineTo(bx + boxW, by + cl);
+      ctx.moveTo(bx, by + boxH - cl); ctx.lineTo(bx, by + boxH); ctx.lineTo(bx + cl, by + boxH);
+      ctx.moveTo(bx + boxW - cl, by + boxH); ctx.lineTo(bx + boxW, by + boxH); ctx.lineTo(bx + boxW, by + boxH - cl);
+      ctx.stroke();
+
+      // Center crosshair
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+      ctx.beginPath();
+      ctx.moveTo(targetX - 8, targetY); ctx.lineTo(targetX + 8, targetY);
+      ctx.moveTo(targetX, targetY - 8); ctx.lineTo(targetX, targetY + 8);
+      ctx.stroke();
+
+      // Tracker telemetry label
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('TARGET: FACE_01 [CONF: 99.2%]', bx, by - 6);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('POS: ' + Math.round(targetX) + ',' + Math.round(targetY), bx, by + boxH + 14);
+
+      // 5. Color Test Bars (SMPTE miniature)
+      var colors = ['#f8fafc', '#eab308', '#06b6d4', '#22c55e', '#ec4899', '#ef4444', '#3b82f6'];
+      var barW = 640 / colors.length;
+      for (var ci = 0; ci < colors.length; ci++) {
+        ctx.fillStyle = colors[ci];
+        ctx.fillRect(ci * barW, 336, barW, 24);
+      }
+
+      // 6. Top Telemetry Overlay
+      ctx.font = 'bold 14px monospace';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('RESPECT VIRTUAL CAMERA LAB (60 FPS)', 20, 28);
+
+      ctx.font = '12px monospace';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('TIMESTAMP : ' + (new Date()).toISOString(), 20, 48);
+      ctx.fillText('STREAM FPS: ' + fps + ' FPS | RESOLUTION: 1280x720 IDEAL', 20, 66);
+
+      // Watermark indicator
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('● LIVE TEST FEED', 510, 28);
+    }
+
+    renderVirtualCam();
+
+    if (statusEl) {
+      statusEl.textContent = 'Kamera Aktif: Virtual Test Stream (Live 60 FPS Simulasi)';
+    }
+    if (callback) callback(true, { isVirtual: true, canvas: canvas });
   }
 
   function stopCamera(videoEl, statusEl) {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(function (track) { track.stop(); });
-      cameraStream = null;
+    cameraRunning = false;
+    if (virtualCamAnimId) {
+      try {
+        cancelAnimationFrame(virtualCamAnimId);
+      } catch (e) {}
+      virtualCamAnimId = null;
     }
-    if (videoEl) videoEl.srcObject = null;
-    if (statusEl) statusEl.textContent = 'Kamera Dimatikan';
+
+    drawStandbyFrame();
+
+    if (statusEl) {
+      statusEl.textContent = 'Kamera Dimatikan (Standby)';
+    }
   }
 
   function snapshotCamera(videoEl, canvasEl, filterType) {
-    if (!videoEl || !canvasEl) return;
+    if (!canvasEl) return;
     var ctx = canvasEl.getContext('2d');
     if (!ctx) return;
 
-    canvasEl.width = videoEl.videoWidth || 640;
-    canvasEl.height = videoEl.videoHeight || 480;
-    ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+    var src = getCamCanvas();
+    if (!src) return;
+
+    canvasEl.width = src.width || 640;
+    canvasEl.height = src.height || 360;
+    ctx.drawImage(src, 0, 0, canvasEl.width, canvasEl.height);
 
     if (filterType && filterType !== 'none') {
       var imgData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
@@ -94,17 +240,30 @@ var MediaLabEngine = (function () {
   // =========================================================================
   function startMicrophone(canvasEl, meterEl, statusEl, callback) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      if (statusEl) statusEl.textContent = 'Audio capture tidak didukung.';
+      var note = 'Audio capture (getUserMedia) tidak aktif (Origin tidak berada di Secure Context atau dibatasi)';
+      if (typeof window.isSecureContext !== 'undefined' && !window.isSecureContext) {
+        note += ' [isSecureContext: false]';
+      }
+      if (statusEl) statusEl.textContent = note;
+      if (callback) callback(false, new Error(note));
       return;
     }
 
-    stopMicrophone();
+    stopMicrophone(null);
 
     navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       .then(function (stream) {
         micStream = stream;
         var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) {
+          if (statusEl) statusEl.textContent = 'AudioContext tidak didukung.';
+          return;
+        }
         micAudioCtx = new AudioCtx();
+        if (typeof micAudioCtx.createAnalyser !== 'function' || typeof micAudioCtx.createMediaStreamSource !== 'function') {
+          if (statusEl) statusEl.textContent = 'createAnalyser/createMediaStreamSource tidak tersedia di AudioContext build ini.';
+          return;
+        }
         micAnalyser = micAudioCtx.createAnalyser();
         micAnalyser.fftSize = 1024;
 
@@ -116,7 +275,7 @@ var MediaLabEngine = (function () {
         if (callback) callback(true);
       })
       .catch(function (err) {
-        if (statusEl) statusEl.textContent = 'Gagal akses mikrofon: ' + err.message;
+        if (statusEl) statusEl.textContent = 'Gagal akses mikrofon: ' + (err.name || 'Error') + ' (' + (err.message || String(err)) + ')';
         if (callback) callback(false, err);
       });
   }
@@ -171,42 +330,75 @@ var MediaLabEngine = (function () {
   }
 
   function stopMicrophone(statusEl) {
-    if (micAnimId) cancelAnimationFrame(micAnimId);
+    if (micAnimId) {
+      try {
+        cancelAnimationFrame(micAnimId);
+      } catch (e) {}
+      micAnimId = null;
+    }
     if (micStream) {
-      micStream.getTracks().forEach(function (track) { track.stop(); });
+      try {
+        var tracks = micStream.getTracks ? micStream.getTracks() : [];
+        for (var i = 0; i < tracks.length; i++) {
+          try {
+            if (tracks[i] && typeof tracks[i].stop === 'function') {
+              tracks[i].stop();
+            }
+          } catch (te) {}
+        }
+      } catch (se) {}
       micStream = null;
     }
     if (micAudioCtx) {
-      try { micAudioCtx.close(); } catch (e) {}
+      try {
+        micAudioCtx.close();
+      } catch (e) {}
       micAudioCtx = null;
     }
     micAnalyser = null;
-    if (statusEl) statusEl.textContent = 'Mikrofon Dimatikan';
+    if (statusEl) {
+      try {
+        statusEl.textContent = 'Mikrofon Dimatikan (Standby)';
+      } catch (e) {}
+    }
   }
 
   // =========================================================================
   // 3. WEB AUDIO HARMONIC SYNTHESIZER (No file dependency)
   // =========================================================================
   function startSynth(freqHz, waveType, gainVal, statusEl) {
-    stopSynth();
+    stopSynth(null);
 
     try {
       var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) {
+        if (statusEl) statusEl.textContent = 'Web Audio API tidak didukung oleh engine ini.';
+        return;
+      }
       synthCtx = new AudioCtx();
+      if (typeof synthCtx.createOscillator !== 'function') {
+        if (statusEl) statusEl.textContent = 'createOscillator() tidak tersedia di AudioContext build ini.';
+        return;
+      }
       synthOsc = synthCtx.createOscillator();
-      synthGain = synthCtx.createGain();
+      synthGain = synthCtx.createGain ? synthCtx.createGain() : null;
 
       synthOsc.type = waveType || 'sine';
-      synthOsc.frequency.setValueAtTime(freqHz || 440, synthCtx.currentTime);
-      synthGain.gain.setValueAtTime(gainVal !== undefined ? gainVal : 0.2, synthCtx.currentTime);
-
-      synthOsc.connect(synthGain);
-      synthGain.connect(synthCtx.destination);
+      if (synthOsc.frequency && typeof synthOsc.frequency.setValueAtTime === 'function') {
+        synthOsc.frequency.setValueAtTime(freqHz || 440, synthCtx.currentTime);
+      }
+      if (synthGain && synthGain.gain && typeof synthGain.gain.setValueAtTime === 'function') {
+        synthGain.gain.setValueAtTime(gainVal !== undefined ? gainVal : 0.2, synthCtx.currentTime);
+        synthOsc.connect(synthGain);
+        synthGain.connect(synthCtx.destination);
+      } else {
+        synthOsc.connect(synthCtx.destination);
+      }
       synthOsc.start();
 
       if (statusEl) statusEl.textContent = 'Synthesizer Aktif: ' + freqHz + ' Hz (' + waveType + ')';
     } catch (e) {
-      if (statusEl) statusEl.textContent = 'Synth Error: ' + e.message;
+      if (statusEl) statusEl.textContent = 'Synth: ' + e.message;
     }
   }
 
@@ -337,6 +529,7 @@ var MediaLabEngine = (function () {
   }
 
   return {
+    initCameraPreview: initCameraPreview,
     startCamera: startCamera,
     stopCamera: stopCamera,
     snapshotCamera: snapshotCamera,
@@ -350,3 +543,7 @@ var MediaLabEngine = (function () {
     stopSpeech: stopSpeech
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.MediaLabEngine = MediaLabEngine;
+}

@@ -92,7 +92,8 @@ Bagi pengembang yang ingin mengintegrasikan Respect ke dalam pipeline CI/CD, skr
 | Parameter | Tipe | Default | Deskripsi |
 | :--- | :--- | :--- | :--- |
 | `--build` | Boolean | `false` | Menandakan eksekusi mode builder baris perintah. |
-| `--mode` | String | `url` | Mode konten: `url` (website), `dir` / `app` (folder web V2), `html` (inline string), atau `file` (single file). |
+| `--mode` | String | `url` | Mode konten: `url` (website), `dir` / `app` (folder web V2), `html` (inline string), `file` (single file), atau `server` (in-memory local server). |
+| `--server` | Boolean | `false` | Mengaktifkan in-memory local HTTP server (`127.0.0.1`) dari RAM (tanpa ekstraksi ke disk) untuk mengaktifkan Secure Context (`crypto.subtle`, Clipboard API). |
 | `--source` | String | `""` | Teks sumber: URL, path file HTML, atau kode HTML inline. |
 | `--dir` | String | `""` | Path direktori frontend web untuk dikemas ke dalam V2 In-Memory Virtual Host. |
 | `--out` | String | `demo.exe` | Nama atau path file output `.exe` yang akan dihasilkan. |

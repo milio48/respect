@@ -348,3 +348,7 @@ var StressBenchmarkEngine = (function () {
     runStorageIoStress: runStorageIoStress
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.StressBenchmarkEngine = StressBenchmarkEngine;
+}

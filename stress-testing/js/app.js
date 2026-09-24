@@ -26,6 +26,95 @@
   var replHistoryIndex = -1;
 
   // =========================================================================
+  // DEFENSIVE ENGINE RESOLVERS (Anti-Block & Crash-Proof Fallbacks)
+  // =========================================================================
+  var ProfileEngine = (typeof window !== 'undefined' && (window.SysProfileEngine || window.FingerprintEngine)) || {
+    getEnvironment: function () {
+      var nav = typeof navigator !== 'undefined' ? navigator : {};
+      var isRespectModern = typeof window.mbQuery === 'function';
+      var isRespectLite = typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function';
+      return {
+        engineFlavor: isRespectModern ? 'Respect Modern (Chromium 132 Core)' : isRespectLite ? 'Respect Lite (Miniblink 49 Core)' : 'Standard Web Context',
+        userAgent: nav.userAgent || 'Unknown',
+        appVersion: nav.appVersion || 'Unknown',
+        platform: nav.platform || 'Unknown',
+        vendor: nav.vendor || 'Unknown',
+        language: nav.language || 'Unknown',
+        languages: nav.languages ? Array.prototype.slice.call(nav.languages) : [],
+        cookieEnabled: !!nav.cookieEnabled,
+        onLine: nav.onLine !== undefined ? nav.onLine : true,
+        doNotTrack: nav.doNotTrack || 'unspecified',
+        maxTouchPoints: nav.maxTouchPoints || 0,
+        pdfViewerEnabled: !!nav.pdfViewerEnabled,
+        isSecureContext: !!window.isSecureContext,
+        respectHooks: { mbQuery: isRespectModern, ipc: isRespectLite }
+      };
+    },
+    getHardwareSpecs: function (cb) {
+      var nav = typeof navigator !== 'undefined' ? navigator : {};
+      var scr = typeof window.screen !== 'undefined' ? window.screen : {};
+      var res = {
+        cpuCores: nav.hardwareConcurrency || 'N/A',
+        deviceMemoryGB: nav.deviceMemory ? (nav.deviceMemory + ' GB') : 'N/A',
+        screenWidth: scr.width || 0,
+        screenHeight: scr.height || 0,
+        colorDepth: scr.colorDepth || 24,
+        pixelRatio: window.devicePixelRatio || 1
+      };
+      if (cb) cb(res);
+      return res;
+    },
+    getWebGLFingerprint: function () { return { supported: false, unmaskedVendor: 'N/A', unmaskedRenderer: 'N/A' }; },
+    getCanvasFingerprint: function () { return { supported: false, hash: 'BLOCKED_BY_CLIENT' }; },
+    getAudioFingerprint: function (cb) { if (cb) cb({ supported: false, hash: 'BLOCKED_BY_CLIENT' }); },
+    probeSystemFonts: function () { return { supported: false, detectedCount: 0, totalTested: 0, detectedFonts: [] }; },
+    probeMediaCodecs: function () { return { video: [], audio: [] }; },
+    probeStorage: function (cb) { var r = { localStorage: true, sessionStorage: true, indexedDB: true }; if (cb) cb(r); return r; }
+  };
+  var FingerprintEngine = ProfileEngine;
+  var SysProfileEngine = ProfileEngine;
+
+  var CapabilityEngine = (typeof window !== 'undefined' && window.CapabilityEngine) || {
+    runAllTests: function () {
+      return { percentage: '0.0', passed: 0, failed: 0, total: 0, tests: [], byCategory: {} };
+    }
+  };
+
+  var ApiDumpEngine = (typeof window !== 'undefined' && window.ApiDumpEngine) || {
+    dumpGlobalApis: function () {
+      return { counts: { total: 0, constructors: 0, functions: 0, objects: 0, values: 0, respectHooks: 0 }, apis: [] };
+    },
+    filterApis: function () { return []; },
+    getNamespaceDetails: function () { return null; }
+  };
+
+  var MediaLabEngine = (typeof window !== 'undefined' && window.MediaLabEngine) || {
+    initCameraPreview: function () {},
+    startCamera: function (v, s, cb) { if (cb) cb(false, new Error('MediaLabEngine unavailable')); },
+    stopCamera: function () {},
+    snapshotCamera: function () {},
+    startMicrophone: function (c, m, s, cb) { if (cb) cb(false, new Error('MediaLabEngine unavailable')); },
+    stopMicrophone: function () {},
+    startSynth: function () {},
+    updateSynthFreq: function () {},
+    stopSynth: function () {},
+    initVideoGenerator: function () {},
+    speakText: function () {},
+    stopSpeech: function () {}
+  };
+
+  var StressBenchmarkEngine = (typeof window !== 'undefined' && window.StressBenchmarkEngine) || {
+    runDomStress: function () { return { opsPerSec: 0, insertTimeMs: '0' }; },
+    initParticleCanvas: function () {},
+    startParticleSimulation: function () {},
+    setParticleCount: function () {},
+    stopParticleSimulation: function () {},
+    runComputeBenchmark: function (m, w, cb) { if (cb) cb({ elapsedMs: '0', totalLatencyMs: '0' }); },
+    runMemoryStress: function () { return { allocatedMb: 0, allocTimeMs: '0', throughputMbSec: 0 }; },
+    runStorageIoStress: function () { return { writeOpsPerSec: 0, readOpsPerSec: 0 }; }
+  };
+
+  // =========================================================================
   // SMART LOGGING & GLOBAL ERROR HANDLER
   // =========================================================================
   function log(msg, type) {
@@ -546,6 +635,10 @@
   // MEDIA LAB WIRING
   // =========================================================================
   function initMediaLab() {
+    if (MediaLabEngine.initCameraPreview) {
+      try { MediaLabEngine.initCameraPreview(); } catch (e) {}
+    }
+
     var startCamBtn = document.getElementById('btnStartCam');
     var stopCamBtn = document.getElementById('btnStopCam');
     var snapCamBtn = document.getElementById('btnSnapCam');
@@ -556,25 +649,44 @@
 
     if (startCamBtn) {
       startCamBtn.addEventListener('click', function () {
-        log('Meminta izin akses kamera video...', 'info');
-        MediaLabEngine.startCamera(camVideo, camStatus, function (ok) {
-          if (ok) log('Kamera video aktif (1280x720).', 'ok');
-          else log('Akses kamera gagal / ditolak.', 'fail');
-        });
+        try {
+          log('Meminta izin akses kamera video...', 'info');
+          MediaLabEngine.startCamera(camVideo, camStatus, function (ok, res) {
+            if (ok) {
+              if (res && res.isVirtual) {
+                log('Virtual Test Camera aktif: 60 FPS live simulation stream (Crash-proof).', 'ok');
+              } else {
+                log('Kamera hardware aktif (1280x720).', 'ok');
+              }
+            } else {
+              log('Akses kamera tidak aktif: ' + (res && res.message ? res.message : 'Dibatasi/Ditolak'), 'fail');
+            }
+          });
+        } catch (e) {
+          log('Kamera start error: ' + (e.message || String(e)), 'fail');
+        }
       });
     }
 
     if (stopCamBtn) {
       stopCamBtn.addEventListener('click', function () {
-        MediaLabEngine.stopCamera(camVideo, camStatus);
-        log('Kamera dimatikan.', 'info');
+        try {
+          MediaLabEngine.stopCamera(camVideo, camStatus);
+          log('Kamera dimatikan.', 'info');
+        } catch (e) {
+          log('Kamera stop error: ' + (e.message || String(e)), 'warn');
+        }
       });
     }
 
     if (snapCamBtn) {
       snapCamBtn.addEventListener('click', function () {
-        MediaLabEngine.snapshotCamera(camVideo, camCanvas, filterSelect ? filterSelect.value : 'none');
-        log('Snapshot kamera diambil dengan filter: ' + (filterSelect ? filterSelect.value : 'none'), 'info');
+        try {
+          MediaLabEngine.snapshotCamera(camVideo, camCanvas, filterSelect ? filterSelect.value : 'none');
+          log('Snapshot kamera diambil dengan filter: ' + (filterSelect ? filterSelect.value : 'none'), 'info');
+        } catch (e) {
+          log('Snapshot error: ' + (e.message || String(e)), 'warn');
+        }
       });
     }
 
@@ -587,18 +699,26 @@
 
     if (startMicBtn) {
       startMicBtn.addEventListener('click', function () {
-        log('Meminta izin akses mikrofon audio...', 'info');
-        MediaLabEngine.startMicrophone(micCanvas, micMeter, micStatus, function (ok) {
-          if (ok) log('Mikrofon aktif. Oscilloscope 60 FPS berjalan.', 'ok');
-          else log('Akses mikrofon gagal / ditolak.', 'fail');
-        });
+        try {
+          log('Meminta izin akses mikrofon audio...', 'info');
+          MediaLabEngine.startMicrophone(micCanvas, micMeter, micStatus, function (ok, err) {
+            if (ok) log('Mikrofon aktif. Oscilloscope 60 FPS berjalan.', 'ok');
+            else log('Akses mikrofon tidak aktif: ' + (err && err.message ? err.message : 'Dibatasi/Ditolak'), 'fail');
+          });
+        } catch (e) {
+          log('Mikrofon start error: ' + (e.message || String(e)), 'fail');
+        }
       });
     }
 
     if (stopMicBtn) {
       stopMicBtn.addEventListener('click', function () {
-        MediaLabEngine.stopMicrophone(micStatus);
-        log('Mikrofon dimatikan.', 'info');
+        try {
+          MediaLabEngine.stopMicrophone(micStatus);
+          log('Mikrofon dimatikan.', 'info');
+        } catch (e) {
+          log('Mikrofon stop error: ' + (e.message || String(e)), 'warn');
+        }
       });
     }
 
@@ -612,25 +732,35 @@
 
     if (synthFreqInput) {
       synthFreqInput.addEventListener('input', function () {
-        var hz = parseInt(synthFreqInput.value, 10);
-        if (synthFreqVal) synthFreqVal.textContent = hz + ' Hz';
-        MediaLabEngine.updateSynthFreq(hz);
+        try {
+          var hz = parseInt(synthFreqInput.value, 10);
+          if (synthFreqVal) synthFreqVal.textContent = hz + ' Hz';
+          MediaLabEngine.updateSynthFreq(hz);
+        } catch (e) {}
       });
     }
 
     if (startSynthBtn) {
       startSynthBtn.addEventListener('click', function () {
-        var hz = parseInt(synthFreqInput ? synthFreqInput.value : 440, 10);
-        var wave = synthWaveSelect ? synthWaveSelect.value : 'sine';
-        MediaLabEngine.startSynth(hz, wave, 0.2, synthStatus);
-        log('Web Audio Synthesizer: ' + hz + ' Hz (' + wave + ').', 'ok');
+        try {
+          var hz = parseInt(synthFreqInput ? synthFreqInput.value : 440, 10);
+          var wave = synthWaveSelect ? synthWaveSelect.value : 'sine';
+          MediaLabEngine.startSynth(hz, wave, 0.2, synthStatus);
+          log('Web Audio Synthesizer: ' + hz + ' Hz (' + wave + ').', 'info');
+        } catch (e) {
+          log('Synthesizer error: ' + (e.message || String(e)), 'warn');
+        }
       });
     }
 
     if (stopSynthBtn) {
       stopSynthBtn.addEventListener('click', function () {
-        MediaLabEngine.stopSynth(synthStatus);
-        log('Synthesizer dimatikan.', 'info');
+        try {
+          MediaLabEngine.stopSynth(synthStatus);
+          log('Synthesizer dimatikan.', 'info');
+        } catch (e) {
+          log('Synthesizer stop error: ' + (e.message || String(e)), 'warn');
+        }
       });
     }
 
@@ -925,14 +1055,14 @@
   // =========================================================================
   window.addEventListener('DOMContentLoaded', function () {
     log('Menginisialisasi Respect Browser Stress Testing Suite...', 'info');
-    initTabs();
-    initTelemetry();
-    runCapabilities();
-    initApiDump();
-    initFingerprints();
-    initMediaLab();
-    initStressLab();
-    initRepl();
+    try { initTabs(); } catch (e) { log('Init Tabs warning: ' + (e.message || e), 'warn'); }
+    try { initTelemetry(); } catch (e) { log('Init Telemetry warning: ' + (e.message || e), 'warn'); }
+    try { runCapabilities(); } catch (e) { log('Init Capabilities warning: ' + (e.message || e), 'warn'); }
+    try { initApiDump(); } catch (e) { log('Init ApiDump warning: ' + (e.message || e), 'warn'); }
+    try { initFingerprints(); } catch (e) { log('Init Fingerprints warning: ' + (e.message || e), 'warn'); }
+    try { initMediaLab(); } catch (e) { log('Init MediaLab warning: ' + (e.message || e), 'warn'); }
+    try { initStressLab(); } catch (e) { log('Init StressLab warning: ' + (e.message || e), 'warn'); }
+    try { initRepl(); } catch (e) { log('Init REPL warning: ' + (e.message || e), 'warn'); }
     log('Seluruh subsistem siap. Buka tab atau ketik perintah di konsol REPL untuk pengujian interaktif.', 'ok');
   });
 

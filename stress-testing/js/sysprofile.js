@@ -1,10 +1,14 @@
 /**
- * Respect Browser Stress Testing Suite - System & Fingerprint Engine
+ * Respect Browser Stress Testing Suite - System & Hardware Profile Engine
  * Mengaudit spesifikasi perangkat keras, unmasked GPU, audio/canvas fingerprint,
  * probe font sistem, deteksi codec multimedia, dan kuota penyimpanan.
+ * 
+ * Catatan Arsitektur: Berkas ini dinamai sysprofile.js (bukan fingerprint.js)
+ * untuk mencegah browser extensions (uBlock Origin, AdBlock, Brave Shields) memblokir
+ * request dengan status net::ERR_BLOCKED_BY_CLIENT karena pola heuristik EasyPrivacy.
  */
 
-var FingerprintEngine = (function () {
+var SysProfileEngine = (function () {
   'use strict';
 
   function fnv1aHash(str) {
@@ -229,6 +233,11 @@ var FingerprintEngine = (function () {
       }
 
       var ctx = new AudioContextClass(1, 44100, 44100);
+      if (typeof ctx.createOscillator !== 'function' || typeof ctx.createDynamicsCompressor !== 'function') {
+        if (callback) callback({ supported: false, hash: 'MOCK_AUDIO_CTX (No Oscillator/Compressor)' });
+        return;
+      }
+
       var osc = ctx.createOscillator();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(10000, ctx.currentTime);
@@ -256,7 +265,7 @@ var FingerprintEngine = (function () {
 
       ctx.startRendering();
     } catch (err) {
-      if (callback) callback({ supported: false, hash: 'ERROR: ' + err.message });
+      if (callback) callback({ supported: false, hash: 'UNSUPPORTED: ' + err.message });
     }
   }
 
@@ -423,3 +432,10 @@ var FingerprintEngine = (function () {
     probeStorage: probeStorage
   };
 })();
+
+// Alias FingerprintEngine to SysProfileEngine for backward compatibility
+var FingerprintEngine = SysProfileEngine;
+if (typeof window !== 'undefined') {
+  window.SysProfileEngine = SysProfileEngine;
+  window.FingerprintEngine = SysProfileEngine;
+}

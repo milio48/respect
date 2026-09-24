@@ -32,6 +32,11 @@ func buildAppFromConfig(cfg payload.Config) error {
 			return errors.New("direktori kosong atau tidak ada file valid")
 		}
 		cfg.Source = "index.html"
+		if cfg.ServerMode {
+			cfg.Mode = "server"
+		} else {
+			cfg.Mode = "app"
+		}
 		return payload.BuildSelfV2(cfg, files)
 
 	case "html":
@@ -45,6 +50,9 @@ func buildAppFromConfig(cfg payload.Config) error {
 			"index.html": []byte(htmlCode),
 		}
 		cfg.Source = "index.html"
+		if cfg.ServerMode {
+			cfg.Mode = "server"
+		}
 		return payload.BuildSelfV2(cfg, files)
 
 	case "file":
@@ -59,6 +67,11 @@ func buildAppFromConfig(cfg payload.Config) error {
 				return err
 			}
 			cfg.Source = "index.html"
+			if cfg.ServerMode {
+				cfg.Mode = "server"
+			} else {
+				cfg.Mode = "app"
+			}
 			return payload.BuildSelfV2(cfg, files)
 		}
 
@@ -75,6 +88,9 @@ func buildAppFromConfig(cfg payload.Config) error {
 			files[baseFile] = data
 		}
 		cfg.Source = baseFile
+		if cfg.ServerMode {
+			cfg.Mode = "server"
+		}
 		return payload.BuildSelfV2(cfg, files)
 
 	case "url":

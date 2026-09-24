@@ -203,6 +203,12 @@ if ($shouldBuildDemo -and (Test-Path $stressDir)) {
             $mb = [math]::Round(($bytes / 1048576), 2)
             Write-Host "  -> Selesai: $demoModern ($mb MB)" -ForegroundColor Green
             $built += 'demo-stress-testing.exe'
+            if (-not $Embed -and (Test-Path $targetDll)) {
+                $rootDll = Join-Path $OutDir 'blink.dll'
+                if (-not (Test-Path $rootDll)) {
+                    Copy-Item -Path $targetDll -Destination $rootDll -Force
+                }
+            }
         }
     }
 

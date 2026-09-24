@@ -380,7 +380,8 @@
             </div>
           </div>
           <div class="media-preview-box">
-            <video id="cameraVideo" autoplay playsinline muted></video>
+            <video id="cameraVideo" autoplay playsinline muted style="display: none;"></video>
+            <canvas id="cameraVirtualFeed" width="640" height="360" style="width: 100%; height: 100%; object-fit: contain; display: block;"></canvas>
           </div>
           <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center;">
             <select id="cameraFilterSelect" class="btn btn-sm">
@@ -591,7 +592,7 @@
   <!-- =======================================================================
        MODULAR SCRIPTS
        ======================================================================= -->
-  <script src="js/fingerprint.js"></script>
+  <script src="js/sysprofile.js"></script>
   <script src="js/apidump.js"></script>
   <script src="js/capability.js"></script>
   <script src="js/media.js"></script>

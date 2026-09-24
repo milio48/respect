@@ -209,3 +209,7 @@ var ApiDumpEngine = (function () {
     filterApis: filterApis
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.ApiDumpEngine = ApiDumpEngine;
+}

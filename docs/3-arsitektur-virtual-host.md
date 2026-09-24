@@ -6,18 +6,18 @@ Salah satu inovasi terbesar pada Respect Desktop adalah arsitektur **In-Memory V
 
 ## 1. Komparasi Tiga Pendekatan Desktop Web
 
-| Parameter | ❌ 1. File Protocol (`file:///`) | ⚠️ 2. Local HTTP Server (`127.0.0.1`) | 🌟 3. In-Memory Virtual Host (`http://app/`) |
-| :--- | :--- | :--- | :--- |
-| **Kinerja & Kecepatan** | Terbatas (I/O lambat) | Sedang (I/O disk + socket latency) | **Maksimal (0 ms, langsung dari RAM)** |
-| **ES Modules (`import/export`)** | ❌ Diblokir CORS Chromium | ✅ Berfungsi | **✅ Berfungsi sempurna** |
-| **Fetch API & Relative URL** | ❌ Diblokir (`null` origin) | ✅ Berfungsi | **✅ Berfungsi sempurna** |
-| **Ekstraksi ke Hard Drive** | Menulis file temporary ke `%TEMP%` | **Wajib ekstrak** ribuan file ke disk | **NOL EKSTRAKSI (100% di RAM)** |
-| **Port Jaringan TCP** | Nol | **Membuka Port di OS** (`127.0.0.1:port`) | **NOL PORT (Tidak ada socket TCP)** |
-| **Akses Browser Luar** | Terisolasi | **Bisa diakses** jika port ditebak | **100% Terisolasi di Respect** |
-| **Bentrok VPN / Proxy Korporat** | Tidak | **Rentan macet** akibat proxy global | **100% Kebal (Bebas proxy/VPN)** |
-| **Peringatan Antivirus / Firewall** | Rendah | Ada risiko (deteksi listener socket) | **Hampir Nol (Tidak ada socket)** |
+| Parameter | ❌ 1. File Protocol (`file:///`) | ⚠️ 2. Disk Local Server (Tradisional) | 🌟 3. In-Memory Virtual Host (`http://app/`) | 🚀 4. In-Memory Local Server (`--server`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Kinerja & Kecepatan** | Terbatas (I/O lambat) | Sedang (I/O disk) | **Maksimal (0 ms dari RAM)** | **Sangat Cepat (RAM + Loopback)** |
+| **ES Modules (`import/export`)** | ❌ Diblokir CORS Chromium | ✅ Berfungsi | **✅ Berfungsi sempurna** | **✅ Berfungsi sempurna** |
+| **Fetch API & Relative URL** | ❌ Diblokir (`null` origin) | ✅ Berfungsi | **✅ Berfungsi sempurna** | **✅ Berfungsi sempurna** |
+| **Secure Context (`crypto.subtle`)** | ❌ `isSecureContext: false` | ✅ `isSecureContext: true` | ⚠️ `isSecureContext: false` | **✅ `isSecureContext: true`** |
+| **Ekstraksi ke Hard Drive** | Menulis file ke `%TEMP%` | **Wajib ekstrak** ribuan file | **NOL EKSTRAKSI (100% di RAM)** | **NOL EKSTRAKSI (100% di RAM)** |
+| **Port Jaringan TCP** | Nol | Membuka Port tetap di OS | **NOL PORT (Tidak ada socket)** | **Port Acak Loopback 127.0.0.1:0** |
+| **Isolasi Keamanan** | Terisolasi | Rentan port scanner lokal | **100% Terisolasi di Respect** | **Terikat ketat ke 127.0.0.1** |
+| **Bentrok VPN / Proxy** | Tidak | Rentan bentrok proxy | **100% Kebal (Bebas proxy)** | **100% Kebal (Bypass localhost)** |
 
-> **Standar Industri:** Pendekatan ini mengadopsi prinsip yang sama seperti framework desktop modern kelas industri seperti **Tauri** (`tauri://localhost`) dan **Wails v2** (`wails://`), menghadirkan performa maksimal dan keamanan kelas enterprise.
+> **Fleksibilitas Respect:** Anda dapat menggunakan mode default **In-Memory Virtual Host (`http://app/`)** untuk isolasi 0-port maksimal, atau menyalakan flag `--server` (atau `--mode server`) jika aplikasi Anda memerlukan fitur modern yang mewajibkan **Secure Context** (seperti `crypto.subtle`, `crypto.randomUUID()`, dan `navigator.clipboard`) tanpa mengorbankan prinsip zero-disk file footprint.
 
 ---
 

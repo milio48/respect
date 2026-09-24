@@ -13,6 +13,7 @@ import (
 
 	blink "github.com/epkgs/blink"
 	"respect-app/assets"
+	"respect-app/internal/localserver"
 	"respect-app/internal/payload"
 	"respect-app/internal/tarball"
 )
@@ -63,14 +64,31 @@ try {
 	view.SetCookieJarFullPath(filepath.Join(appDir, "cookie.dat"))
 	view.SetLocalStorageFullPath(filepath.Join(appDir, "storage"))
 
-	// 3. Jika payload Versi 2 (In-Memory TAR Virtual Host via app.Resource.Bind)
+	// 3. Jika payload Versi 2 (In-Memory TAR Virtual Host atau In-Memory Local Server)
 	if p.Version == 2 && len(p.Files) > 0 {
+		entryFile := "index.html"
+		if cfg.Source != "" && !strings.HasPrefix(cfg.Source, "http") {
+			entryFile = strings.TrimPrefix(cfg.Source, "/")
+		}
+
+		if cfg.ServerMode || cfg.Mode == "server" {
+			srv, err := localserver.Start(p.Files)
+			if err == nil {
+				serverURL := fmt.Sprintf("http://127.0.0.1:%d/%s", srv.Port, entryFile)
+				view.LoadURL(serverURL)
+				view.ShowWindow()
+				view.OnDestroy(func() {
+					srv.Close()
+					os.Exit(0)
+				})
+				app.KeepRunning()
+				return
+			}
+		}
+
 		memFS := tarball.NewMemoryFS(p.Files)
 		_ = app.Resource.Bind("app", memFS)
-		entryURL := "http://app/index.html"
-		if cfg.Source != "" && !strings.HasPrefix(cfg.Source, "http") {
-			entryURL = "http://app/" + strings.TrimPrefix(cfg.Source, "/")
-		}
+		entryURL := "http://app/" + entryFile
 		view.LoadURL(entryURL)
 		view.ShowWindow()
 		view.OnDestroy(func() {

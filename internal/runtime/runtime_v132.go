@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"respect-app/assets"
+	"respect-app/internal/localserver"
 	"respect-app/internal/mb132"
 	"respect-app/internal/payload"
 )
@@ -30,13 +31,32 @@ func Run(p *payload.Payload) {
 		_ = view.SetIcon(assets.RespectIcon)
 	}
 
-	// 1. Jika payload Versi 2 (In-Memory TAR Virtual Host)
+	// 1. Jika payload Versi 2 (In-Memory TAR Virtual Host / In-Memory Local Server)
 	if p.Version == 2 && len(p.Files) > 0 {
-		view.RegisterVirtualHost(p.Files)
-		entryURL := "http://app/index.html"
+		entryFile := "index.html"
 		if cfg.Source != "" && !strings.HasPrefix(cfg.Source, "http") {
-			entryURL = "http://app/" + strings.TrimPrefix(cfg.Source, "/")
+			entryFile = strings.TrimPrefix(cfg.Source, "/")
 		}
+
+		// Mode Server: Buka HTTP server in-memory pada 127.0.0.1 untuk mengaktifkan Secure Context (WebCrypto, Clipboard)
+		if cfg.ServerMode || cfg.Mode == "server" {
+			srv, err := localserver.Start(p.Files)
+			if err == nil {
+				view.OnDestroy(func() {
+					srv.Close()
+				})
+				serverURL := fmt.Sprintf("http://127.0.0.1:%d/%s", srv.Port, entryFile)
+				view.LoadURL(serverURL)
+				view.Show()
+				mb132.RunMessageLoop()
+				return
+			}
+			// Fallback ke Virtual Host jika start server gagal
+		}
+
+		// Mode Default: Virtual Host in-memory (http://app/) - 0 port, 0 disk write
+		view.RegisterVirtualHost(p.Files)
+		entryURL := "http://app/" + entryFile
 		view.LoadURL(entryURL)
 		view.Show()
 		mb132.RunMessageLoop()

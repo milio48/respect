@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"respect-app/assets"
 )
@@ -105,17 +106,22 @@ func ApplyMetadata(targetExe string, meta Metadata) error {
 		args = append(args, "--set-version-string", "LegalCopyright", strings.TrimSpace(meta.LegalCopyright))
 	}
 
-	cmd := exec.Command(rceditPath, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
-	}
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("rcedit error (%w): %s", err, string(output))
+	var lastErr error
+	var lastOutput []byte
+	for attempt := 0; attempt < 5; attempt++ {
+		cmd := exec.Command(rceditPath, args...)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+		lastOutput, lastErr = cmd.CombinedOutput()
+		if lastErr == nil {
+			return nil
+		}
+		time.Sleep(150 * time.Millisecond)
 	}
 
-	return nil
+	return fmt.Errorf("rcedit error (%w): %s", lastErr, string(lastOutput))
 }
 
 // InjectIcon mengganti icon pada targetExe memakai rcedit.exe

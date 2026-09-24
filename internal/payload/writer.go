@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 	"respect-app/internal/cryptopayload"
@@ -56,9 +57,18 @@ func prepareBaseEXE(cfg Config) error {
 		}
 	}
 
-	// Tulis base EXE
-	if err := os.WriteFile(cfg.OutName, selfBytes, 0755); err != nil {
-		return err
+	// Tulis base EXE (dengan retry untuk mencegah bentrok antivirus/file lock sesaat di Windows)
+	var writeErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		_ = os.Remove(cfg.OutName)
+		writeErr = os.WriteFile(cfg.OutName, selfBytes, 0755)
+		if writeErr == nil {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	if writeErr != nil {
+		return writeErr
 	}
 
 	// Injeksi metadata PE dan icon sebelum trailer ditempel
@@ -81,7 +91,15 @@ func prepareBaseEXE(cfg Config) error {
 
 // appendTrailer menempelkan data blob + 8-byte panjang + magic string ke ujung executable.
 func appendTrailer(targetExe string, blob []byte, magic string) error {
-	out, err := os.OpenFile(targetExe, os.O_APPEND|os.O_WRONLY, 0755)
+	var out *os.File
+	var err error
+	for attempt := 0; attempt < 10; attempt++ {
+		out, err = os.OpenFile(targetExe, os.O_APPEND|os.O_WRONLY, 0755)
+		if err == nil {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
 	if err != nil {
 		return err
 	}

@@ -645,6 +645,19 @@
         <label for="copyright">Hak Cipta (Legal Copyright)</label>
         <input type="text" id="copyright" placeholder="Contoh: Copyright © 2026 Developer" autocomplete="off">
       </div>
+
+      <!-- Server Mode Checkbox (Secure Context / In-Memory Local Server) -->
+      <div class="field" style="margin-top: 14px; margin-bottom: 4px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+        <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-weight: 600;">
+          <input type="checkbox" id="server-mode" style="margin-top: 3px; cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent);">
+          <div>
+            <span>Gunakan In-Memory Local Web Server (127.0.0.1)</span>
+            <div class="hint" style="margin-top: 2px;">
+              Sajikan file langsung dari RAM menggunakan port loopback lokal untuk mengaktifkan <strong>Secure Context</strong> (<code>window.isSecureContext === true</code>, <code>crypto.subtle</code>, WebCrypto, dan Clipboard API). Tetap tanpa menulis file sementara ke hard disk.
+            </div>
+          </div>
+        </label>
+      </div>
     </div>
 
     <!-- Submit Button -->
@@ -980,6 +993,7 @@
   }
 
   function collectConfig() {
+    var srvEl = document.getElementById('server-mode');
     return {
       mode: currentMode,
       source: val('source').trim(),
@@ -990,7 +1004,8 @@
       out_name: normalizeOutName(val('outname')),
       app_version: val('app-version').trim() || '1.0.0',
       company: val('company').trim(),
-      copyright: val('copyright').trim()
+      copyright: val('copyright').trim(),
+      server_mode: srvEl ? srvEl.checked : false
     };
   }
 
@@ -1121,6 +1136,8 @@
         var el = document.getElementById(id);
         if (el) state.fields[id] = el.value;
       });
+      var srvEl = document.getElementById('server-mode');
+      if (srvEl) state.serverMode = srvEl.checked;
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) { /* localStorage tidak tersedia — abaikan */ }
   }
@@ -1253,6 +1270,11 @@
       }
     });
 
+    var srvEl = document.getElementById('server-mode');
+    if (srvEl) {
+      srvEl.addEventListener('change', function () { saveState(); });
+    }
+
     var saved = loadState();
     if (saved) {
       if (saved.fields) {
@@ -1261,6 +1283,9 @@
             document.getElementById(id).value = saved.fields[id];
           }
         });
+      }
+      if (typeof saved.serverMode === 'boolean' && srvEl) {
+        srvEl.checked = saved.serverMode;
       }
       setMode(saved.mode);
       toggleAdvanced(!!saved.advanced);

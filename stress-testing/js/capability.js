@@ -58,14 +58,14 @@ var CapabilityEngine = (function () {
        1. JAVASCRIPT & ECMASCRIPT STANDARDS
        ========================================================================= */
     check('JavaScript', 'let-const', 'let & const (Block Scope)', tryEval('let a = 1; const b = 2; return a + b === 3;'));
-    check('JavaScript', 'arrow-fn', 'Arrow Functions', tryEval('return eval("((x) => x * 2)(4) === 8");'));
-    check('JavaScript', 'template-literals', 'Template Literals (`${x}`)', tryEval('var val = 42; return eval("`num:${val}`") === "num:42";'));
-    check('JavaScript', 'destructuring', 'Array & Object Destructuring', tryEval('return eval("const [x, ...y] = [1, 2, 3]; const {a} = {a: 9}; return x === 1 && y.length === 2 && a === 9;");'));
-    check('JavaScript', 'default-params', 'Default Function Parameters', tryEval('return eval("(function(x = 10){ return x; })() === 10;");'));
-    check('JavaScript', 'classes', 'ES6 Classes & Inheritance', tryEval('return eval("class A { foo() { return 1; } } class B extends A {} return (new B()).foo() === 1;");'));
+    check('JavaScript', 'arrow-fn', 'Arrow Functions', tryEval('return ((x) => x * 2)(4) === 8;'));
+    check('JavaScript', 'template-literals', 'Template Literals (`${x}`)', tryEval('var val = 42; return `num:${val}` === "num:42";'));
+    check('JavaScript', 'destructuring', 'Array & Object Destructuring', tryEval('const [x, ...y] = [1, 2, 3]; const {a} = {a: 9}; return x === 1 && y.length === 2 && a === 9;'));
+    check('JavaScript', 'default-params', 'Default Function Parameters', tryEval('function f(x = 10){ return x; } return f() === 10;'));
+    check('JavaScript', 'classes', 'ES6 Classes & Inheritance', tryEval('class A { foo() { return 1; } } class B extends A {} return (new B()).foo() === 1;'));
     check('JavaScript', 'promise', 'Promise & Microtasks', hasProp(window, 'Promise'));
-    check('JavaScript', 'async-await', 'async / await Syntax', tryEval('return typeof eval("(async function() { return true; })") === "function";'));
-    check('JavaScript', 'generators', 'Generators & Iterators (function*)', tryEval('return typeof eval("(function*() { yield 1; })") === "function";'));
+    check('JavaScript', 'async-await', 'async / await Syntax', tryEval('return typeof (async function() { return true; }) === "function";'));
+    check('JavaScript', 'generators', 'Generators & Iterators (function*)', tryEval('return typeof (function*() { yield 1; }) === "function";'));
     check('JavaScript', 'symbol', 'Symbol Primitive', hasProp(window, 'Symbol'));
     check('JavaScript', 'map-set', 'Map, Set, WeakMap, WeakSet', function () {
       return typeof Map !== 'undefined' && typeof Set !== 'undefined' && typeof WeakMap !== 'undefined' && typeof WeakSet !== 'undefined';
@@ -73,10 +73,10 @@ var CapabilityEngine = (function () {
     check('JavaScript', 'proxy-reflect', 'Proxy & Reflect Metaprogramming', function () {
       return typeof Proxy !== 'undefined' && typeof Reflect !== 'undefined';
     });
-    check('JavaScript', 'optional-chaining', 'Optional Chaining (?.)', tryEval('var obj = {}; return eval("obj?.nonExistent?.property === undefined");'));
-    check('JavaScript', 'nullish-coalescing', 'Nullish Coalescing (??)', tryEval('return eval("(null ?? 10) === 10 && (0 ?? 20) === 0;");'));
-    check('JavaScript', 'logical-assignment', 'Logical Assignment (||=, &&=, ??=)', tryEval('return eval("let a = 0; a ||= 5; let b = 1; b &&= 2; return a === 5 && b === 2;");'));
-    check('JavaScript', 'numeric-separators', 'Numeric Separators (1_000_000)', tryEval('return eval("1_000_000 === 1000000;");'));
+    check('JavaScript', 'optional-chaining', 'Optional Chaining (?.)', tryEval('var obj = {}; return obj?.nonExistent?.property === undefined;'));
+    check('JavaScript', 'nullish-coalescing', 'Nullish Coalescing (??)', tryEval('return (null ?? 10) === 10 && (0 ?? 20) === 0;'));
+    check('JavaScript', 'logical-assignment', 'Logical Assignment (||=, &&=, ??=)', tryEval('let a = 0; a ||= 5; let b = 1; b &&= 2; return a === 5 && b === 2;'));
+    check('JavaScript', 'numeric-separators', 'Numeric Separators (1_000_000)', tryEval('return 1_000_000 === 1000000;'));
     check('JavaScript', 'bigint', 'BigInt (64-bit+ integers)', hasProp(window, 'BigInt'));
     check('JavaScript', 'array-at', 'Array.prototype.at()', function () { return typeof Array.prototype.at === 'function'; });
     check('JavaScript', 'array-flat', 'Array.prototype.flat / flatMap', function () { return typeof Array.prototype.flat === 'function' && typeof Array.prototype.flatMap === 'function'; });
@@ -92,7 +92,7 @@ var CapabilityEngine = (function () {
     check('JavaScript', 'weakref', 'WeakRef & FinalizationRegistry', function () { return typeof WeakRef !== 'undefined' && typeof FinalizationRegistry !== 'undefined'; });
     check('JavaScript', 'intl', 'Intl Internationalization API', hasProp(window, 'Intl'));
     check('JavaScript', 'wasm', 'WebAssembly (WASM Core)', hasProp(window, 'WebAssembly'));
-    check('JavaScript', 'wasm-simd', 'WebAssembly SIMD Support', tryEval('return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,125,0,0,0,0,11]));'));
+    check('JavaScript', 'wasm-simd', 'WebAssembly SIMD Support', tryEval('return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,22,1,20,0,253,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11]));'));
 
     /* =========================================================================
        2. MODERN CSS ENGINE STANDARDS
@@ -176,9 +176,11 @@ var CapabilityEngine = (function () {
     check('DOM', 'pointer-lock', 'Pointer Lock API (Mouse capture)', function () {
       return 'pointerLockElement' in document || 'webkitPointerLockElement' in document;
     });
+    var isSec = (typeof window.isSecureContext !== 'undefined') ? window.isSecureContext : false;
+
     check('DOM', 'clipboard-async', 'Async Clipboard API (navigator.clipboard)', function () {
       return !!(navigator.clipboard && navigator.clipboard.writeText);
-    });
+    }, (!isSec && !(navigator.clipboard && navigator.clipboard.writeText)) ? 'Dibatasi (Memerlukan Secure Context / HTTPS)' : undefined);
 
     /* =========================================================================
        5. NETWORKING & MESSAGING
@@ -192,23 +194,23 @@ var CapabilityEngine = (function () {
     check('Network', 'eventsource', 'Server-Sent Events (EventSource)', hasProp(window, 'EventSource'));
     check('Network', 'web-worker', 'Dedicated Web Workers', hasProp(window, 'Worker'));
     check('Network', 'shared-worker', 'SharedWorker', hasProp(window, 'SharedWorker'));
-    check('Network', 'service-worker', 'ServiceWorker API', hasProp(navigator, 'serviceWorker'));
+    check('Network', 'service-worker', 'ServiceWorker API', hasProp(navigator, 'serviceWorker'), (!isSec && !('serviceWorker' in navigator)) ? 'Dibatasi (Memerlukan Secure Context / HTTPS)' : undefined);
 
     /* =========================================================================
        6. SECURITY & CRYPTOGRAPHY
        ========================================================================= */
     check('Security', 'crypto-subtle', 'Web Cryptography (crypto.subtle)', function () {
       return !!(window.crypto && window.crypto.subtle);
-    });
+    }, (!isSec && !(window.crypto && window.crypto.subtle)) ? 'Dibatasi (Memerlukan Secure Context / HTTPS)' : undefined);
     check('Security', 'crypto-random-values', 'crypto.getRandomValues()', function () {
       return !!(window.crypto && window.crypto.getRandomValues);
     });
     check('Security', 'crypto-random-uuid', 'crypto.randomUUID() (RFC 4122 V4)', function () {
       return !!(window.crypto && typeof window.crypto.randomUUID === 'function');
-    });
+    }, (!isSec && !(window.crypto && typeof window.crypto.randomUUID === 'function')) ? 'Dibatasi (Memerlukan Secure Context / HTTPS)' : undefined);
     check('Security', 'secure-context', 'Secure Context Flag (isSecureContext)', function () {
       return window.isSecureContext === true;
-    });
+    }, window.isSecureContext === true ? 'Secure Context Active' : 'Insecure Origin (http://app)');
     check('Security', 'cross-origin-isolation', 'Cross-Origin Isolation', function () {
       return window.crossOriginIsolated === true;
     });
@@ -218,7 +220,7 @@ var CapabilityEngine = (function () {
        ========================================================================= */
     check('Sensors', 'get-user-media', 'MediaDevices.getUserMedia (Camera/Mic)', function () {
       return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    });
+    }, (!isSec && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) ? 'Dibatasi (Memerlukan Secure Context / HTTPS)' : undefined);
     check('Sensors', 'web-audio', 'Web Audio API (AudioContext)', function () {
       return typeof (window.AudioContext || window.webkitAudioContext) === 'function';
     });
@@ -260,3 +262,7 @@ var CapabilityEngine = (function () {
     runAllTests: runAllTests
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.CapabilityEngine = CapabilityEngine;
+}
