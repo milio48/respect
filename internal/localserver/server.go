@@ -78,6 +78,20 @@ func Start(files map[string][]byte) (*Server, error) {
 				contentType = "image/x-icon"
 			case ".wasm":
 				contentType = "application/wasm"
+			case ".mp3":
+				contentType = "audio/mpeg"
+			case ".wav":
+				contentType = "audio/wav"
+			case ".m4a":
+				contentType = "audio/mp4"
+			case ".aac":
+				contentType = "audio/aac"
+			case ".mp4":
+				contentType = "video/mp4"
+			case ".webm":
+				contentType = "video/webm"
+			case ".ogg":
+				contentType = "audio/ogg"
 			case ".woff2":
 				contentType = "font/woff2"
 			case ".woff":

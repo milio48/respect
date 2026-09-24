@@ -367,6 +367,28 @@ var CapabilityEngine = (function () {
     check('Sensors', 'idle-detection', 'Idle Detection API', function () { return typeof window.IdleDetector === 'function'; });
     check('Sensors', 'contact-picker', 'Contact Picker API', hasProp(navigator, 'contacts'));
 
+    /* =========================================================================
+       16. MEDIA & STREAMING READINESS (YouTube / Spotify / HLS)
+       ========================================================================= */
+    check('Media', 'media-source', 'Media Source Extensions (MSE)', function () { return typeof MediaSource === 'function'; });
+    check('Media', 'source-buffer', 'SourceBuffer (MSE)', function () { return typeof SourceBuffer === 'function'; });
+    check('Media', 'mse-mp4-h264', 'MSE isTypeSupported H.264/AAC', function () {
+      return typeof MediaSource === 'function' && typeof MediaSource.isTypeSupported === 'function' &&
+        MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E,mp4a.40.2"');
+    });
+    check('Media', 'mse-webm-vp9', 'MSE isTypeSupported WebM VP9/Opus', function () {
+      return typeof MediaSource === 'function' && typeof MediaSource.isTypeSupported === 'function' &&
+        MediaSource.isTypeSupported('video/webm; codecs="vp9,opus"');
+    });
+    check('Media', 'native-hls', 'Native HLS (application/vnd.apple.mpegurl)', function () {
+      var v = document.createElement('video');
+      return v.canPlayType('application/vnd.apple.mpegurl') !== '';
+    });
+    check('Media', 'eme-drm', 'Encrypted Media Extensions (Widevine/DRM)', function () { return typeof navigator.requestMediaKeySystemAccess === 'function'; });
+    check('Media', 'webcodecs-video', 'WebCodecs VideoDecoder', function () { return typeof VideoDecoder === 'function'; });
+    check('Media', 'media-recorder', 'MediaRecorder API', function () { return typeof MediaRecorder === 'function'; });
+    check('Media', 'capture-stream', 'canvas.captureStream()', function () { return typeof HTMLCanvasElement !== 'undefined' && typeof HTMLCanvasElement.prototype.captureStream === 'function'; });
+
     // Compute Summary Stats
     var total = tests.length;
     var passed = 0;

@@ -62,6 +62,7 @@ var (
 	procMbOnTitleChanged                 *syscall.Proc
 	procMbOnDownload                     *syscall.Proc
 	procMbPopupDownloadMgr               *syscall.Proc
+	procMbOnConsole                      *syscall.Proc
 
 	// Windows User32 & Kernel32 untuk window, dialog, icon, dan proses
 	user32                  = syscall.NewLazyDLL("user32.dll")
@@ -184,6 +185,17 @@ func spawnDetachedCleanup() {
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
 	}
 	_ = cmd.Start()
+}
+
+// setVirtualResponseHeader menetapkan header respons HTTP (response=1) untuk
+// request virtual host melalui mbNetSetHTTPHeaderFieldUtf8.
+func setVirtualResponseHeader(jobPtr uintptr, key, value string) {
+	if procMbNetSetHTTPHeaderFieldUtf8 == nil || jobPtr == 0 {
+		return
+	}
+	k := append([]byte(key), 0)
+	v := append([]byte(value), 0)
+	procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&k[0])), uintptr(unsafe.Pointer(&v[0])), 1)
 }
 
 // ptrToUtf8 membaca string UTF-8 yang ditunjuk oleh pointer memori C
@@ -428,6 +440,7 @@ func Init() error {
 		procMbOnTitleChanged, _ = dllMod.FindProc("mbOnTitleChanged")
 		procMbOnDownload, _ = dllMod.FindProc("mbOnDownload")
 		procMbPopupDownloadMgr, _ = dllMod.FindProc("mbPopupDownloadMgr")
+		procMbOnConsole, _ = dllMod.FindProc("mbOnConsole")
 		procMbNetSetData, _ = dllMod.FindProc("mbNetSetData")
 		procMbNetSetMIMEType, _ = dllMod.FindProc("mbNetSetMIMEType")
 
@@ -460,6 +473,12 @@ type WebView struct {
 	onTitleChangedCb uintptr
 	onCreateViewCb   uintptr
 	onDownloadCb     uintptr
+	onConsoleCb      uintptr
+
+	// State fullscreen (compat layer)
+	fsActive bool
+	fsStyle  uintptr
+	fsRect   rect
 
 	virtualFiles map[string][]byte
 }
@@ -653,6 +672,10 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 							mimeBytes := append([]byte(pureMime), 0)
 							procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
 						}
+						// Set response header Content-Type (lengkap) + CORS. Header ini penting
+						// agar <script type="module"> mengenali .mjs sebagai JavaScript (ES Module).
+						setVirtualResponseHeader(jobPtr, "Content-Type", mime)
+						setVirtualResponseHeader(jobPtr, "Access-Control-Allow-Origin", "*")
 						if procMbNetSetData != nil {
 							if len(data) > 0 {
 								procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
@@ -664,17 +687,20 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 						return 1 // 1 (TRUE) = ditangani in-memory oleh Go, jangan kirim ke jaringan
 					}
 
-					// Jika path tidak ditemukan di virtualFiles (misal favicon.ico atau 404):
-					// Tetap tangani in-memory (return 1) agar request TIDAK bocor ke libcurl/jaringan!
-					// Kebocoran request http://app/* ke libcurl menyebabkan libcurl membuat cookies.dat lokal di folder EXE!
+					// Path tidak ditemukan: sajikan halaman 404 HTML in-memory.
+					// (mb.h tidak menyediakan setter status code, hanya mbNetGetHttpStatusCode,
+					//  jadi status tetap 200 di level koneksi — namun body & MIME benar.)
 					if procMbNetSetMIMEType != nil {
-						pureMime := "text/plain"
-						mimeBytes := append([]byte(pureMime), 0)
+						mimeBytes := append([]byte("text/html"), 0)
 						procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
 					}
+					setVirtualResponseHeader(jobPtr, "Content-Type", "text/html; charset=utf-8")
 					if procMbNetSetData != nil {
-						var empty byte
-						procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&empty)), 0)
+						notFound := []byte("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>404 Not Found</title></head>" +
+							"<body style=\"font-family:system-ui,sans-serif;background:#0a0e17;color:#94a3b8;text-align:center;padding-top:15vh\">" +
+							"<h1 style=\"color:#ef4444;font-size:48px;margin:0\">404</h1>" +
+							"<p>Respect Virtual Host: berkas tidak ditemukan.</p></body></html>")
+						procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&notFound[0])), uintptr(len(notFound)))
 					}
 					return 1 // 1 = tangani in-memory, blokir dari jaringan
 				}
@@ -692,7 +718,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 
 	// 8. Injeksi skrip context V8: override navigator.language dan terapkan akselerasi mouse wheel yang natural
 	if procMbOnDidCreateScriptContext != nil && procMbRunJs != nil {
-		preloadScript := []byte(`
+		preloadStr := `
 try {
     Object.defineProperty(navigator, 'language', { get: () => 'id-ID', configurable: true });
     Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'], configurable: true });
@@ -724,13 +750,27 @@ try {
         }, { passive: false });
     }
 } catch(e) {}
-` + "\x00")
+`
+
+		if compatEnabled {
+			preloadStr += "\n" + compatPreloadJS() + "\n"
+		}
+		if !strings.HasSuffix(preloadStr, "\n") {
+			preloadStr += "\n"
+		}
+		preloadScript := []byte(preloadStr + "\x00")
 
 		wv.onScriptCtxCb = syscall.NewCallback(func(h, param, frameId, ctx, extGroup, worldId uintptr) uintptr {
 			procMbRunJs.Call(h, frameId, uintptr(unsafe.Pointer(&preloadScript[0])), 0, 0, 0, 0)
 			return 0
 		})
 		procMbOnDidCreateScriptContext.Call(wv.Handle, wv.onScriptCtxCb, 0)
+	}
+
+	// 8b. Rekam console native (mbOnConsole) & pasang lapisan kompatibilitas (akali API absen)
+	wv.installConsoleCapture()
+	if compatEnabled {
+		wv.installCompat()
 	}
 
 	if title != "" {
@@ -870,6 +910,9 @@ func (v *WebView) HostHWND() uintptr {
 
 // HandleQuery mendaftarkan fungsi Go untuk merespons query JavaScript (window.mbQuery)
 func (v *WebView) HandleQuery(handler func(req string) string) {
+	if procMbOnJsQuery == nil || procMbResponseQuery == nil {
+		return
+	}
 	v.onQueryUser = handler
 
 	v.onQueryCb = syscall.NewCallback(func(handle uintptr, param uintptr, es uintptr, queryId int64, customMsg int32, reqPtr *byte) uintptr {

@@ -21,6 +21,10 @@ func Run(p *payload.Payload) {
 	cfg := &p.Config
 	cfg.Defaults()
 
+	// Aktifkan lapisan kompatibilitas (JS shim + bridge mbQuery) untuk mengakali
+	// API web yang tidak disediakan engine Miniblink (clipboard, TTS, fullscreen, dll).
+	mb132.EnableCompatShims()
+
 	view, err := mb132.CreateWebWindow(cfg.Title, cfg.Width, cfg.Height)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Gagal menginisialisasi jendela runtime: %v\n", err)

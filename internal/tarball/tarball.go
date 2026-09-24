@@ -164,6 +164,12 @@ func DetectMIME(name string) string {
 		return "application/wasm"
 	case ".mp3":
 		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	case ".m4a":
+		return "audio/mp4"
+	case ".aac":
+		return "audio/aac"
 	case ".mp4":
 		return "video/mp4"
 	case ".webm":

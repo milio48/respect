@@ -78,6 +78,30 @@ var FeatureLabEngine = (function () {
     return document.getElementById(id);
   }
 
+  // Membuat data URI WAV (PCM 16-bit mono) untuk menguji pipeline pemutaran media
+  // tanpa perlu file biner. Dipakai oleh aksi media-audio-playback / media-video-playback.
+  function makeWavDataURI(seconds, freq, sampleRate) {
+    seconds = seconds || 0.35;
+    freq = freq || 440;
+    sampleRate = sampleRate || 8000;
+    var n = Math.floor(seconds * sampleRate);
+    var total = 44 + n * 2;
+    var buf = new ArrayBuffer(total);
+    var view = new DataView(buf);
+    function ws(off, s) { for (var i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); }
+    ws(0, 'RIFF'); view.setUint32(4, total - 8, true); ws(8, 'WAVE');
+    ws(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ws(36, 'data'); view.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++) {
+      view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * freq * i / sampleRate) * 0.3 * 32767, true);
+    }
+    var u8 = new Uint8Array(buf);
+    var bin = '';
+    for (var j = 0; j < u8.length; j++) bin += String.fromCharCode(u8[j]);
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+
   // Jalankan SATU aksi, selalu resolve dengan objek hasil terstruktur.
   function run(id, reporter) {
     var a = byId[id];
@@ -1109,6 +1133,83 @@ var FeatureLabEngine = (function () {
   // 7. MEDIA & HARDWARE (kamera/mic/synth/TTS/hardware)
   // -------------------------------------------------------------------------
   define({
+    id: 'media-audio-playback', category: 'Media', name: 'Pemutaran audio WAV (play + ended)', kind: 'auto', timeoutMs: 15000,
+    run: function (done) {
+      var a = document.createElement('audio');
+      if (typeof a.play !== 'function') return done(false, 'HTMLMediaElement.play tidak tersedia');
+      var cpt = '';
+      try { cpt = a.canPlayType('audio/wav'); } catch (e) {}
+      var src;
+      try { src = makeWavDataURI(0.35, 440, 8000); } catch (e) { return done(false, 'Gagal membuat WAV: ' + e.message); }
+      var settled = false;
+      function fin(p, d) { if (settled) return; settled = true; done(p, d); }
+      var sawCanPlay = false, sawEnded = false;
+      a.muted = true; a.volume = 0; a.preload = 'auto';
+      a.addEventListener('canplaythrough', function () { sawCanPlay = true; });
+      a.addEventListener('ended', function () {
+        sawEnded = true;
+        fin(true, 'WAV diputar sampai selesai. canPlayType="' + cpt + '" canplaythrough=' + sawCanPlay + ' ended=' + sawEnded);
+      });
+      a.addEventListener('error', function () {
+        var e = a.error;
+        fin(false, 'Media error: ' + (e ? e.code + '/' + (e.message || '') : 'unknown') + ' (canPlayType="' + cpt + '")');
+      });
+      a.src = src;
+      try {
+        var p = a.play();
+        if (p && typeof p.then === 'function') {
+          p.then(null, function (err) { if (!sawEnded) fin(false, 'play() ditolak: ' + ((err && err.message) || err) + ' (canPlayType="' + cpt + '")'); });
+        }
+      } catch (e) { fin(false, 'play() exception: ' + e.message); }
+    }
+  });
+
+  define({
+    id: 'media-http-file', category: 'Media', name: 'Putar WAV dari HTTP (assets/sample.wav)', kind: 'auto', timeoutMs: 15000,
+    run: function (done) {
+      var url = 'assets/sample.wav';
+      try { url = new URL('assets/sample.wav', document.baseURI || window.location.href).href; } catch (e) {}
+      var a = document.createElement('audio');
+      if (typeof a.play !== 'function') return done(false, 'HTMLMediaElement.play tidak tersedia');
+      var settled = false;
+      function fin(p, d) { if (settled) return; settled = true; done(p, d); }
+      var meta = '';
+      a.muted = true; a.preload = 'auto';
+      a.addEventListener('loadedmetadata', function () { meta = 'duration=' + a.duration; });
+      a.addEventListener('canplaythrough', function () { meta += ' canplaythrough'; });
+      a.addEventListener('playing', function () { setTimeout(function () { fin(true, 'WAV dari HTTP diputar (' + url + ') ' + meta); }, 500); });
+      a.addEventListener('ended', function () { fin(true, 'WAV dari HTTP diputar sampai habis (' + url + ') ' + meta); });
+      a.addEventListener('error', function () { var e = a.error; fin(false, 'Gagal memutar ' + url + ': ' + (e ? 'code ' + e.code + ' ' + (e.message || '') : 'unknown')); });
+      a.src = url;
+      document.body.appendChild(a);
+      try { var p = a.play(); if (p && typeof p.catch === 'function') p.catch(function () {}); } catch (e) {}
+      setTimeout(function () { if (!settled) { try { if (a.parentNode) a.parentNode.removeChild(a); } catch (e) {} fin(false, 'Timeout: tidak ada event playing untuk ' + url + '. ' + meta); } }, 12000);
+    }
+  });
+
+  define({
+    id: 'media-video-playback', category: 'Media', name: 'Pemutaran <video> (pipeline media)', kind: 'auto', timeoutMs: 15000,
+    run: function (done) {
+      var v = document.createElement('video');
+      if (typeof v.play !== 'function') return done(false, 'HTMLElement video.play tidak tersedia');
+      var cpt = '';
+      try { cpt = v.canPlayType('video/mp4'); } catch (e) {}
+      var src;
+      try { src = makeWavDataURI(0.3, 660, 8000); } catch (e) { return done(false, 'Gagal membuat sumber media: ' + e.message); }
+      var settled = false;
+      function fin(p, d) { if (settled) return; settled = true; done(p, d); }
+      v.muted = true; v.preload = 'auto';
+      v.addEventListener('loadedmetadata', function () { fin(true, 'Elemen <video> memuat metadata media. canPlayType("video/mp4")="' + cpt + '" duration=' + v.duration); });
+      v.addEventListener('error', function () {
+        var e = v.error;
+        fin(false, 'Video error: ' + (e ? e.code + '/' + (e.message || '') : 'unknown'));
+      });
+      v.src = src;
+      try { v.load(); } catch (e) {}
+    }
+  });
+
+  define({
     id: 'media-getusermedia', category: 'Media', name: 'navigator.mediaDevices.getUserMedia presence', kind: 'auto',
     run: function (done) {
       var md = navigator.mediaDevices;
@@ -1323,7 +1424,101 @@ var FeatureLabEngine = (function () {
   });
 
   // -------------------------------------------------------------------------
-  // 8. DIAGNOSTIC / TELEMETRY (auto)
+  // 8. STREAMING & PEMUTARAN MEDIA NYATA (MP3/MP4/HLS)
+  // -------------------------------------------------------------------------
+  define({
+    id: 'media-backends', category: 'Streaming', name: 'Backend pemutar media (MCI / libvlc)', kind: 'auto',
+    run: function (done) {
+      if (typeof window.respectInvoke !== 'function') return done(false, 'Bridge respectInvoke tidak tersedia (bukan build Modern dengan lapisan compat)');
+      window.respectInvoke('media.info').then(function (info) {
+        var msg = 'mci=' + (info && info.mci) + ' | audio: ' + (info && info.audio) + ' | video: ' + (info && info.video);
+        if (info && info.hint) msg += ' | ' + info.hint;
+        done(!!(info && info.mci), msg);
+      }).catch(function (e) { done(false, 'media.info gagal: ' + (e && e.message ? e.message : e)); });
+    }
+  });
+
+  define({
+    id: 'streaming-mse', category: 'Streaming', name: 'MSE / MediaSource readiness', kind: 'auto',
+    run: function (done) {
+      var out = {};
+      out.MediaSource = (typeof MediaSource === 'function');
+      out.SourceBuffer = (typeof SourceBuffer === 'function');
+      try {
+        out.mp4H264AAC = (typeof MediaSource === 'function' && typeof MediaSource.isTypeSupported === 'function') ? MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E,mp4a.40.2"') : false;
+      } catch (e) { out.mp4H264AAC = false; }
+      try {
+        out.webmVP9Opus = (typeof MediaSource === 'function' && typeof MediaSource.isTypeSupported === 'function') ? MediaSource.isTypeSupported('video/webm; codecs="vp9,opus"') : false;
+      } catch (e) { out.webmVP9Opus = false; }
+      out.EME = (typeof navigator.requestMediaKeySystemAccess === 'function');
+      out.WebCodecs = (typeof VideoDecoder === 'function');
+      // YouTube/HLS modern bergantung pada MSE. Tanpa MSE, hls.js & YouTube tak jalan.
+      var playerCapable = out.MediaSource && out.mp4H264AAC;
+      done(playerCapable, (playerCapable ? 'MSE siap untuk pemutar (YouTube/hls.js mungkin jalan). ' : 'MSE tidak tersedia/tidak mendukung H.264 -> YouTube & HLS.js tidak akan jalan. ') + safeStr(out));
+    }
+  });
+
+  define({
+    id: 'streaming-hls-native', category: 'Streaming', name: 'Native HLS (.m3u8) canPlayType', kind: 'auto',
+    run: function (done) {
+      var v = document.createElement('video');
+      var m3u8 = '';
+      var mp4 = '';
+      try { m3u8 = v.canPlayType('application/vnd.apple.mpegurl'); } catch (e) {}
+      try { mp4 = v.canPlayType('video/mp4'); } catch (e) {}
+      done(m3u8 !== '', 'canPlayType(m3u8)="' + m3u8 + '" | canPlayType(mp4)="' + mp4 + '" (native HLS tidak ada di Chromium desktop; butuh hls.js + MSE)');
+    }
+  });
+
+  define({
+    id: 'media-local-file', category: 'Streaming', name: 'Putar file lokal (pilih MP3/MP4/WAV)', kind: 'manual', timeoutMs: 60000,
+    run: function (done) {
+      var input = document.getElementById('mediaFileInput');
+      var file = input && input.files && input.files[0];
+      if (!file) return done(false, 'Belum ada file dipilih. Pilih file dulu di kartu "Uji Media Manual".');
+      var isAudio = String(file.type || '').indexOf('audio') === 0;
+      var elm = document.createElement(isAudio ? 'audio' : 'video');
+      var url = URL.createObjectURL(file);
+      var settled = false;
+      var meta = '';
+      function fin(p, d) { if (settled) return; settled = true; try { URL.revokeObjectURL(url); } catch (e) {} done(p, d); }
+      elm.controls = true;
+      elm.style.cssText = 'position:fixed;right:8px;bottom:8px;width:240px;z-index:9999;background:#000;';
+      elm.addEventListener('loadedmetadata', function () { meta = 'duration=' + elm.duration + 's ' + (elm.videoWidth ? elm.videoWidth + 'x' + elm.videoHeight : 'audio'); });
+      elm.addEventListener('playing', function () { setTimeout(function () { fin(true, 'Berhasil memutar "' + file.name + '" (' + (file.type || '?') + ') ' + meta); }, 600); });
+      elm.addEventListener('error', function () { var e = elm.error; fin(false, 'Gagal memutar "' + file.name + '": ' + (e ? 'code ' + e.code + ' ' + (e.message || '') : 'unknown')); });
+      elm.src = url;
+      document.body.appendChild(elm);
+      try { var p = elm.play(); if (p && typeof p.catch === 'function') p.catch(function () {}); } catch (e) {}
+      setTimeout(function () { if (!settled) fin(false, 'Timeout: tidak ada event playing (codec mungkin tidak didukung). ' + meta); }, 12000);
+    }
+  });
+
+  define({
+    id: 'media-direct-url', category: 'Streaming', name: 'Putar URL media langsung (mp3/mp4)', kind: 'manual', timeoutMs: 60000,
+    run: function (done) {
+      var input = document.getElementById('mediaUrlInput');
+      var url = input && input.value ? String(input.value).trim() : '';
+      if (!url) return done(false, 'URL kosong. Isi URL media langsung di kartu "Uji Media Manual".');
+      var isAudio = /\.(mp3|wav|ogg|m4a|aac)(\?|#|$)/i.test(url);
+      var elm = document.createElement(isAudio ? 'audio' : 'video');
+      var settled = false;
+      var meta = '';
+      function fin(p, d) { if (settled) return; settled = true; done(p, d); }
+      elm.controls = true;
+      elm.style.cssText = 'position:fixed;right:8px;bottom:8px;width:240px;z-index:9999;background:#000;';
+      elm.addEventListener('loadedmetadata', function () { meta = 'duration=' + elm.duration + 's ' + (elm.videoWidth ? elm.videoWidth + 'x' + elm.videoHeight : 'audio'); });
+      elm.addEventListener('playing', function () { setTimeout(function () { fin(true, 'Streaming langsung berhasil: ' + url + ' ' + meta); }, 800); });
+      elm.addEventListener('error', function () { var e = elm.error; fin(false, 'Gagal streaming ' + url + ': ' + (e ? 'code ' + e.code + ' ' + (e.message || '') : 'unknown')); });
+      elm.src = url;
+      document.body.appendChild(elm);
+      try { var p = elm.play(); if (p && typeof p.catch === 'function') p.catch(function () {}); } catch (e) {}
+      setTimeout(function () { if (!settled) fin(false, 'Timeout: tidak ada event playing untuk ' + url + '. ' + meta); }, 15000);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 9. DIAGNOSTIC / TELEMETRY (auto)
   // -------------------------------------------------------------------------
   define({
     id: 'diag-timing', category: 'Diagnostics', name: 'Performance navigation timing', kind: 'auto',
