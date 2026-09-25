@@ -21,6 +21,8 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+
+	"respect-app/internal/winprint"
 )
 
 // compatEnabled diaktifkan runtime sebelum CreateWebWindow.
@@ -477,6 +479,20 @@ func (wv *WebView) handleCompatQuery(req string) string {
 		}
 		return okJSON(true)
 
+	case "page.print":
+		var p struct {
+			Title string `json:"title"`
+		}
+		_ = json.Unmarshal(m.Payload, &p)
+		if p.Title == "" {
+			p.Title = "Respect Document"
+		}
+		printed, err := winprint.PrintWindowContent(wv.HostHWND(), p.Title)
+		if err != nil {
+			return errJSON("gagal mencetak: " + err.Error())
+		}
+		return okJSON(map[string]interface{}{"ok": true, "printed": printed})
+
 	case "idle.time":
 		return okJSON(map[string]uint32{"idleMs": idleTimeMs()})
 
@@ -635,6 +651,57 @@ func compatPreloadJS() string {
     }
     window.respectInvoke = invoke;
     window.respectNativeConsole = function () { return invoke('console.dump'); };
+
+    try {
+      window.print = function () {
+        try { window.dispatchEvent(new Event('beforeprint')); } catch (e) {}
+        return invoke('page.print', { title: document.title || 'Respect Document' }).then(function (res) {
+          try { window.dispatchEvent(new Event('afterprint')); } catch (e) {}
+          return res;
+        }).catch(function (err) {
+          try { window.dispatchEvent(new Event('afterprint')); } catch (e) {}
+          throw err;
+        });
+      };
+
+      window.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P' || e.keyCode === 80)) {
+          e.preventDefault();
+          window.print();
+        }
+      });
+
+      window.respect = window.respect || {};
+      window.respect.print = function () { return window.print(); };
+      window.respect.printElement = function (target) {
+        var el = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!el) {
+          console.warn('[Respect] Element not found for print:', target);
+          return Promise.reject(new Error('Element not found'));
+        }
+        var styleId = '__respect_print_element_style__';
+        var style = document.getElementById(styleId);
+        if (!style) {
+          style = document.createElement('style');
+          style.id = styleId;
+          style.textContent =
+            '@media print {' +
+            '  body * { visibility: hidden !important; }' +
+            '  .__respect_print_target__, .__respect_print_target__ * { visibility: visible !important; }' +
+            '  .__respect_print_target__ { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; margin: 0 !important; }' +
+            '}';
+          document.head.appendChild(style);
+        }
+        el.classList.add('__respect_print_target__');
+        var cleanup = function () {
+          el.classList.remove('__respect_print_target__');
+          window.removeEventListener('afterprint', cleanup);
+        };
+        window.addEventListener('afterprint', cleanup);
+        setTimeout(cleanup, 3000);
+        return window.print();
+      };
+    } catch (e) {}
 
     try { if (typeof navigator.vibrate !== 'function') navigator.vibrate = function () { return true; }; } catch (e) {}
 

@@ -4,6 +4,7 @@ package runtime
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"respect-app/internal/localserver"
 	"respect-app/internal/payload"
 	"respect-app/internal/tarball"
+	"respect-app/internal/winprint"
 )
 
 // User-Agent modern untuk kompatibilitas web Miniblink 49
@@ -39,11 +41,86 @@ func Run(p *payload.Payload) {
 		return `{"ok":true,"engine":"v49"}`
 	})
 
-	// Injeksi boot script untuk menyetel bahasa navigator ke Indonesia/Inggris (format ES5 murni)
+	var currentHWND uintptr
+	app.IPC.Handle("page.print", func(payloadJSON string) string {
+		var p struct {
+			Title string `json:"title"`
+		}
+		_ = json.Unmarshal([]byte(payloadJSON), &p)
+		if p.Title == "" {
+			p.Title = cfg.Title
+		}
+		if p.Title == "" {
+			p.Title = "Respect Document"
+		}
+		printed, err := winprint.PrintWindowContent(currentHWND, p.Title)
+		if err != nil {
+			return fmt.Sprintf(`{"ok":false,"error":%q}`, err.Error())
+		}
+		return fmt.Sprintf(`{"ok":true,"printed":%v}`, printed)
+	})
+
+	// Injeksi boot script untuk menyetel bahasa navigator ke Indonesia/Inggris & dukungan cetak (ES5 murni)
 	app.AddBootScript(`
 try {
 	Object.defineProperty(navigator, 'language', { get: function () { return 'id-ID'; } });
 	Object.defineProperty(navigator, 'languages', { get: function () { return ['id-ID', 'id', 'en-US', 'en']; } });
+} catch (e) {}
+
+try {
+	window.print = function () {
+		try { window.dispatchEvent(new Event('beforeprint')); } catch (e) {}
+		var title = document.title || 'Respect Document';
+		var payload = JSON.stringify({ title: title });
+		if (window.ipc && typeof window.ipc.invoke === 'function') {
+			return window.ipc.invoke('page.print', payload).then(function (res) {
+				try { window.dispatchEvent(new Event('afterprint')); } catch (e) {}
+				return res;
+			}).catch(function (err) {
+				try { window.dispatchEvent(new Event('afterprint')); } catch (e) {}
+				throw err;
+			});
+		}
+		return Promise.resolve();
+	};
+
+	window.addEventListener('keydown', function (e) {
+		if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P' || e.keyCode === 80)) {
+			e.preventDefault();
+			window.print();
+		}
+	});
+
+	window.respect = window.respect || {};
+	window.respect.print = function () { return window.print(); };
+	window.respect.printElement = function (target) {
+		var el = typeof target === 'string' ? document.querySelector(target) : target;
+		if (!el) {
+			console.warn('[Respect] Element not found for print:', target);
+			return Promise.reject(new Error('Element not found'));
+		}
+		var styleId = '__respect_print_element_style__';
+		var style = document.getElementById(styleId);
+		if (!style) {
+			style = document.createElement('style');
+			style.id = styleId;
+			style.textContent =
+				'@media print {' +
+				'  body * { visibility: hidden !important; }' +
+				'  .__respect_print_target__, .__respect_print_target__ * { visibility: visible !important; }' +
+				'  .__respect_print_target__ { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; margin: 0 !important; }' +
+				'}';
+			document.head.appendChild(style);
+		}
+		el.classList.add('__respect_print_target__');
+		var cleanup = function () {
+			el.classList.remove('__respect_print_target__');
+			window.removeEventListener('afterprint', cleanup);
+		};
+		window.addEventListener('afterprint', cleanup);
+		setTimeout(cleanup, 3000);
+		return window.print();
+	};
 } catch (e) {}
 `)
 
@@ -53,6 +130,9 @@ try {
 	}
 	view.Window.SetTitle(cfg.Title)
 	view.Window.MoveToCenter()
+	if view.Window != nil {
+		currentHWND = uintptr(view.Window.Hwnd)
+	}
 
 	// 1. Injeksi User-Agent modern ke webview Miniblink
 	uaBytes := []byte(defaultModernUA)

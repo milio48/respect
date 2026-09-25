@@ -116,13 +116,54 @@ Respect menyediakan dua pilihan penyajian aplikasi web:
 | | Gamepad API (Xbox / XInput) | ✅ Didukung | Diakali via XInput Win32 |
 | | Notifikasi (`Notification`) | ✅ Didukung | Diteruskan ke native MessageBox |
 | | Web Crypto API (`crypto.subtle`) | ✅ Didukung | Wajib mengaktifkan mode `--server` |
+| **Pencetakan (Printing)** | Cetak Halaman (`window.print()`, `Ctrl+P`) | ✅ Didukung 100% | Membuka Windows Native Print Dialog (`PrintDlg`) |
+| | Cetak Per Elemen (`respect.printElement`) | ✅ Didukung 100% | Isolasi elemen otomatis via CSS `@media print` |
+| | Ekspor ke PDF | ✅ Didukung 100% | Pilih printer "Microsoft Print to PDF" di dialog |
 | **Komunikasi & Hardware** | WebRTC Video Call P2P | ❌ Tidak Didukung | Membutuhkan stack C++ WebRTC penuh |
 | | Kamera & Mic (`getUserMedia`) | ❌ Tidak Didukung | Pipeline media input tidak ada di engine |
 | | Geolocation API | ❌ Dinonaktifkan | Sengaja tidak memakai estimasi IP palsu |
 
 ---
 
-## 5. Panduan Praktis Pemilihan Fitur untuk Pengembang
+## 5. Fitur Pencetakan Dokumen & Struk (Printing)
+
+Respect Desktop secara bawaan menyediakan jembatan pencetakan native yang terhubung langsung ke **Windows Print Dialog** (`comdlg32.dll` / GDI printing engine).
+
+### A. Cetak Halaman Penuh (`window.print()`)
+Pengembang web dapat menggunakan kode JavaScript standar tanpa library tambahan:
+```html
+<button onclick="window.print()">🖨️ Cetak Dokumen</button>
+```
+* Pengguna juga dapat menekan kombinasi tombol <kbd>Ctrl</kbd> + <kbd>P</kbd> kapan saja.
+* Respect akan memunculkan kotak dialog printer asli Windows di mana pengguna dapat memilih printer fisik (thermal kasir, printer kantor HP/Epson/Canon) atau memilih **Microsoft Print to PDF** untuk menyimpan sebagai file `.pdf`.
+
+### B. Cetak Elemen Tertentu Saja (Invoice / Struk Kasir)
+Untuk mencetak hanya area tertentu (misalnya `#invoice` atau `.receipt`) tanpa navbar, sidebar, atau tombol:
+
+**1. Menggunakan CSS `@media print` (Rekomendasi Standar Industri):**
+```css
+@media print {
+  body * { visibility: hidden !important; }
+  #invoice, #invoice * { visibility: visible !important; }
+  #invoice {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+}
+```
+
+**2. Menggunakan Helper Bawaan Respect (`window.respect.printElement`):**
+Respect menyuntikkan helper global yang secara otomatis mengisolasi elemen target saat proses cetak berjalan:
+```javascript
+// Cukup berikan CSS selector elemen yang ingin dicetak:
+window.respect.printElement('#invoice');
+```
+
+---
+
+## 6. Panduan Praktis Pemilihan Fitur untuk Pengembang
 
 1. **Aplikasi Dashboard, Point of Sale (POS), Kasir, Sistem ERP**:
    - Gunakan mode default (**Virtual Host**). Performa paling instan, memori hemat, dan tidak memicu prompt firewall Windows.
