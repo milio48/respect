@@ -5,7 +5,7 @@
 *.dat
 !assets/rcedit.exe
 !assets/blink.dll
-!assets/blink.dll.zst
+!assets/*.zst
 test-v132/
 dist/
 release/

@@ -46,17 +46,28 @@ if ($Target -eq 'all' -or $Target -eq 'lite') {
     $liteDir = Join-Path $OutDir 'respect-lite'
     if (!(Test-Path $liteDir)) { New-Item -ItemType Directory -Path $liteDir -Force | Out-Null }
 
+    $compressScript = Join-Path $PSScriptRoot 'compress_dll.go'
+    if ($Embed) {
+        if (Test-Path $compressScript) {
+            go run $compressScript lite
+            if ($LASTEXITCODE -ne 0) { throw "Kompresi zstd lite gagal (exit code $LASTEXITCODE)" }
+        }
+    }
+
+    $liteTags = if ($Embed) { "slim,embed49" } else { "slim" }
     $liteExe = Join-Path $liteDir 'respect-lite.exe'
-    go build -ldflags="-s -w -H windowsgui $ldVersion" -o $liteExe .
+    go build -tags $liteTags -ldflags="-s -w -H windowsgui $ldVersion" -o $liteExe .
     if ($LASTEXITCODE -ne 0) { throw "go build Respect Lite (64-bit) gagal (exit code $LASTEXITCODE)" }
     
+    $desc = if ($Embed) { "Respect Desktop Builder & Runner (Lite Engine Standalone)" } else { "Respect Desktop Builder & Runner (Lite Engine 64-bit)" }
+
     if ((Test-Path $rcedit) -and (Test-Path $iconLite)) {
         & $rcedit $liteExe `
             --set-icon $iconLite `
             --set-product-version $prodVersion `
             --set-file-version $fileVersion `
             --set-version-string "ProductName" "Respect Desktop Lite" `
-            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 64-bit)" `
+            --set-version-string "FileDescription" $desc `
             --set-version-string "CompanyName" "milio48" `
             --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
             --set-version-string "OriginalFilename" "respect-lite.exe"
@@ -67,7 +78,8 @@ if ($Target -eq 'all' -or $Target -eq 'lite') {
 
     $liteBytes = (Get-Item $liteExe).Length
     $liteMB = [math]::Round(($liteBytes / 1048576), 2)
-    Write-Host "  -> Selesai: $liteExe ($liteMB MB standalone)" -ForegroundColor Green
+    $typeDesc = if ($Embed) { "standalone single-file" } else { "slim binary" }
+    Write-Host "  -> Selesai: $liteExe ($liteMB MB $typeDesc)" -ForegroundColor Green
     $built += 'respect-lite.exe'
 }
 
@@ -78,14 +90,17 @@ if ($Target -eq 'all' -or $Target -eq 'lite-x86') {
     $liteDir = Join-Path $OutDir 'respect-lite'
     if (!(Test-Path $liteDir)) { New-Item -ItemType Directory -Path $liteDir -Force | Out-Null }
 
+    $liteTags = if ($Embed) { "slim,embed49" } else { "slim" }
     $liteX86Exe = Join-Path $liteDir 'respect-lite-x86.exe'
     $env:GOARCH = "386"
     try {
-        go build -ldflags="-s -w -H windowsgui $ldVersion" -o $liteX86Exe .
+        go build -tags $liteTags -ldflags="-s -w -H windowsgui $ldVersion" -o $liteX86Exe .
         if ($LASTEXITCODE -ne 0) { throw "go build Respect Lite x86 (32-bit) gagal (exit code $LASTEXITCODE)" }
     } finally {
         $env:GOARCH = "amd64"
     }
+
+    $desc = if ($Embed) { "Respect Desktop Builder & Runner (Lite Engine 32-bit Standalone)" } else { "Respect Desktop Builder & Runner (Lite Engine 32-bit)" }
 
     if ((Test-Path $rcedit) -and (Test-Path $iconLite)) {
         & $rcedit $liteX86Exe `
@@ -93,7 +108,7 @@ if ($Target -eq 'all' -or $Target -eq 'lite-x86') {
             --set-product-version $prodVersion `
             --set-file-version $fileVersion `
             --set-version-string "ProductName" "Respect Desktop Lite (32-bit)" `
-            --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 32-bit)" `
+            --set-version-string "FileDescription" $desc `
             --set-version-string "CompanyName" "milio48" `
             --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
             --set-version-string "OriginalFilename" "respect-lite-x86.exe"
@@ -104,7 +119,8 @@ if ($Target -eq 'all' -or $Target -eq 'lite-x86') {
 
     $liteX86Bytes = (Get-Item $liteX86Exe).Length
     $liteX86MB = [math]::Round(($liteX86Bytes / 1048576), 2)
-    Write-Host "  -> Selesai: $liteX86Exe ($liteX86MB MB standalone 32-bit)" -ForegroundColor Green
+    $typeDesc = if ($Embed) { "standalone single-file 32-bit" } else { "slim binary 32-bit" }
+    Write-Host "  -> Selesai: $liteX86Exe ($liteX86MB MB $typeDesc)" -ForegroundColor Green
     $built += 'respect-lite-x86.exe'
 }
 
