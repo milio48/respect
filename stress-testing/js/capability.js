@@ -319,6 +319,9 @@ var CapabilityEngine = (function () {
     check('DOM', 'pointer-events-api', 'PointerEvent API', function () { return typeof window.PointerEvent === 'function'; });
     check('DOM', 'touch-events-api', 'TouchEvent / touch points', function () { return ('ontouchstart' in window) || typeof window.TouchEvent === 'function'; });
     check('DOM', 'domrect', 'DOMRect geometry object', function () { return typeof DOMRect === 'function'; });
+    check('DOM', 'window-print', 'window.print() Printing API', function () { return typeof window.print === 'function'; });
+    check('DOM', 'respect-bridge', 'Respect Desktop Bridge (window.respect)', function () { return typeof window.respect === 'object' && window.respect !== null; });
+    check('DOM', 'respect-print-element', 'Respect Element Printing (respect.printElement)', function () { return !!(window.respect && typeof window.respect.printElement === 'function'); });
 
     /* =========================================================================
        12. NETWORK & PROTOKOL LANJUTAN

@@ -49,7 +49,10 @@ var SysProfileEngine = (function () {
       isSecureContext: !!window.isSecureContext,
       respectHooks: {
         mbQuery: isRespectModern,
-        ipc: isRespectLite
+        ipc: isRespectLite,
+        respectBridge: typeof window.respect === 'object' && window.respect !== null,
+        printSupported: typeof window.print === 'function',
+        printElementSupported: !!(window.respect && typeof window.respect.printElement === 'function')
       }
     };
   }

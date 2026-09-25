@@ -388,8 +388,12 @@
 
     var envIpcStatus = document.getElementById('envIpcStatus');
     if (envIpcStatus) {
-      envIpcStatus.textContent = env.respectHooks.mbQuery ? 'Chromium 132 (mbQuery Native)' :
-                                env.respectHooks.ipc ? 'Miniblink 49 (window.ipc Native)' : 'Standard Web Context';
+      var bridgeLabel = env.respectHooks.mbQuery ? 'Chromium 132 (mbQuery Native)' :
+                        env.respectHooks.ipc ? 'Miniblink 49 (window.ipc Native)' : 'Standard Web Context';
+      if (env.respectHooks.printSupported) {
+        bridgeLabel += ' + WinPrint';
+      }
+      envIpcStatus.textContent = bridgeLabel;
     }
 
     var envSecureContext = document.getElementById('envSecureContext');
@@ -1260,6 +1264,8 @@
       { id: 'chk-alert', label: 'alert() muncul sebagai dialog & tidak crash' },
       { id: 'chk-confirm', label: 'confirm() mengembalikan OK/Cancel dengan benar' },
       { id: 'chk-prompt', label: 'prompt() menerima input & mengembalikan teks' },
+      { id: 'chk-print', label: 'window.print() / Ctrl+P membuka Windows Print Dialog' },
+      { id: 'chk-print-element', label: 'window.respect.printElement() mencetak target elemen terpilih' },
       { id: 'chk-camera-stop', label: 'Tombol Stop Kamera TIDAK menutup paksa (force close)' },
       { id: 'chk-mic', label: 'Mikrofon & oscilloscope berjalan' },
       { id: 'chk-tts', label: 'TTS mengucapkan teks' },
@@ -1483,6 +1489,8 @@
       var bits = [];
       if (typeof window.mbQuery === 'function') bits.push('mbQuery');
       if (window.ipc && typeof window.ipc.invoke === 'function') bits.push('ipc');
+      if (typeof window.respect === 'object' && window.respect !== null) bits.push('respect');
+      if (typeof window.print === 'function') bits.push('print');
       if (typeof window.fetch === 'function') bits.push('fetch');
       if (typeof window.Worker === 'function') bits.push('Worker');
       interceptorEl.textContent = bits.length ? bits.join(' + ') : 'none';

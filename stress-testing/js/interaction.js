@@ -890,10 +890,55 @@ var FeatureLabEngine = (function () {
   });
 
   define({
-    id: 'dialog-print', category: 'Dialog', name: 'window.print()', kind: 'manual', danger: true, timeoutMs: 60000,
+    id: 'dialog-print', category: 'Dialog', name: 'window.print() (Windows Print Dialog)', kind: 'manual', danger: true, timeoutMs: 60000,
     run: function (done) {
-      try { window.print(); done(true, 'print() dipanggil tanpa exception'); }
-      catch (e) { done(false, 'print() exception: ' + e.message); }
+      try {
+        var res = window.print();
+        if (res && typeof res.then === 'function') {
+          res.then(function (r) {
+            var detail = 'print() selesai diproses';
+            if (r && typeof r === 'object') {
+              detail += ' (printed=' + r.printed + ', ok=' + r.ok + ')';
+            } else if (typeof r !== 'undefined') {
+              detail += ': ' + safeStr(r);
+            }
+            done(true, detail);
+          }).catch(function (e) {
+            done(false, 'print() reject: ' + (e && e.message ? e.message : String(e)));
+          });
+        } else {
+          done(true, 'print() dipanggil tanpa exception (return=' + safeStr(res) + ')');
+        }
+      } catch (e) { done(false, 'print() exception: ' + e.message); }
+    }
+  });
+
+  define({
+    id: 'dialog-print-element', category: 'Dialog', name: 'window.respect.printElement() (Cetak Elemen DOM Tertentu)', kind: 'manual', danger: true, timeoutMs: 60000,
+    run: function (done) {
+      if (!window.respect || typeof window.respect.printElement !== 'function') {
+        return done(false, 'window.respect.printElement tidak tersedia di engine ini');
+      }
+      try {
+        var targetSel = '#tab-runner .guide-banner';
+        var el = document.querySelector(targetSel) || document.querySelector('.guide-banner') || document.body;
+        var res = window.respect.printElement(el);
+        if (res && typeof res.then === 'function') {
+          res.then(function (r) {
+            var detail = 'printElement() selesai';
+            if (r && typeof r === 'object') {
+              detail += ' (printed=' + r.printed + ', ok=' + r.ok + ')';
+            } else if (typeof r !== 'undefined') {
+              detail += ': ' + safeStr(r);
+            }
+            done(true, detail);
+          }).catch(function (e) {
+            done(false, 'printElement() reject: ' + (e && e.message ? e.message : String(e)));
+          });
+        } else {
+          done(true, 'printElement() dipanggil tanpa exception');
+        }
+      } catch (e) { done(false, 'printElement() exception: ' + e.message); }
     }
   });
 
@@ -917,20 +962,43 @@ var FeatureLabEngine = (function () {
   });
 
   // -------------------------------------------------------------------------
-  // 4. JS BRIDGE (mbQuery / ipc)
+  // 4. JS BRIDGE (mbQuery / ipc / respect)
   // -------------------------------------------------------------------------
   define({
-    id: 'bridge-detect', category: 'Bridge', name: 'Deteksi hook native (mbQuery/ipc/chrome)', kind: 'auto',
+    id: 'bridge-detect', category: 'Bridge', name: 'Deteksi hook native (mbQuery/ipc/respect/chrome)', kind: 'auto',
     run: function (done) {
+      var respectMethods = [];
+      if (window.respect && typeof window.respect === 'object') {
+        for (var k in window.respect) {
+          if (Object.prototype.hasOwnProperty.call(window.respect, k)) {
+            respectMethods.push(k + ':' + typeof window.respect[k]);
+          }
+        }
+      }
       var info = {
         mbQuery: typeof window.mbQuery,
         ipc: typeof window.ipc,
         chrome: typeof window.chrome,
         respect: typeof window.respect,
+        respectMethods: respectMethods.join(','),
+        print: typeof window.print,
         mbQueryArgCount: (typeof window.mbQuery === 'function') ? window.mbQuery.length : -1
       };
-      var present = info.mbQuery === 'function' || info.ipc !== 'undefined';
+      var present = info.mbQuery === 'function' || info.ipc !== 'undefined' || (typeof window.respect === 'object');
       done(present, safeStr(info));
+    }
+  });
+
+  define({
+    id: 'bridge-respect-api', category: 'Bridge', name: 'window.respect API Object', kind: 'auto',
+    run: function (done) {
+      if (!window.respect || typeof window.respect !== 'object') {
+        return done(false, 'window.respect belum terdefinisi di window');
+      }
+      var hasPrint = typeof window.respect.print === 'function';
+      var hasPrintEl = typeof window.respect.printElement === 'function';
+      var pass = hasPrint && hasPrintEl;
+      done(pass, 'respect.print: ' + typeof window.respect.print + ', respect.printElement: ' + typeof window.respect.printElement);
     }
   });
 
