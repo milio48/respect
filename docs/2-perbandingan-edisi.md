@@ -9,7 +9,7 @@ Respect Desktop dirilis dalam dua edisi utama yang didesain untuk kebutuhan yang
 | Dimensi Fitur | 🌟 Respect Modern (`respect.exe`) | 🪶 Respect Lite (`respect-lite.exe`) |
 | :--- | :--- | :--- |
 | **Engine Inti** | **Chromium 132** (Blink Modern 2025/2026) | **Miniblink 49** (Fork WebKit Ringan) |
-| **Ukuran File Binary** | **~27–28 MB** *(Engine ZSTD tertanam)* | **~57 MB** *(x64)* / **~51 MB** *(x86 32-bit)* |
+| **Ukuran File Binary** | **~31–32 MB** *(Engine ZSTD tertanam, x64)* | **~32 MB** *(x64)* / **~30 MB** *(x86 32-bit, ZSTD tertanam)* |
 | **Konsumsi Memori (RAM)** | ~80–120 MB (Sesuai beban tab Chromium) | **~25–40 MB (Sangat hemat dan enteng)** |
 | **Dukungan OS Windows** | Windows 7 SP1, 8, 10, 11 (64-bit) | Windows XP SP3, 7, 8, 10, 11 (32-bit & 64-bit) |
 | **Kompatibilitas CSS** | **100% Dukungan Modern** (CSS Grid, Variables, Tailwind CSS) | CSS3 Dasar (Tanpa CSS Grid, tanpa CSS Variables) |

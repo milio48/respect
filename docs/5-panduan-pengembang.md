@@ -40,14 +40,15 @@ Get-Help .\scripts\build.ps1 -Detailed
 | Perintah PowerShell | Output Executable | Mode Engine | Deskripsi |
 | :--- | :--- | :--- | :--- |
 | `.\scripts\build.ps1 -Target modern` | `dist/respect/respect.exe` | **Slim (Dev)** | Kompilasi kilat (~2 detik); menyalin `blink.dll` ke samping binary. |
-| `.\scripts\build.ps1 -Target modern -Embed` | `dist/respect/respect.exe` | **Standalone Single-File** | Engine Chromium 132 dikompresi ZSTD (level 19) dan ditanamkan ke dalam `.exe`. |
-| `.\scripts\build.ps1 -Target lite` | `dist/respect-lite/respect-lite.exe` | **Standalone 64-bit** | Engine Miniblink 49 tertanam (x64). |
-| `.\scripts\build.ps1 -Target lite-x86` | `dist/respect-lite/respect-lite-x86.exe` | **Standalone 32-bit** | Engine Miniblink 49 tertanam untuk sistem lawas/32-bit (x86). |
+| `.\scripts\build.ps1 -Target modern -Embed` | `dist/respect/respect.exe` | **Standalone Single-File** | Engine Chromium 132 dikompresi ZSTD (level 19) dan ditanamkan ke dalam `.exe` (~31 MB). |
+| `.\scripts\build.ps1 -Target lite` | `dist/respect-lite/respect-lite.exe` | **Slim (Dev)** | Kompilasi binary ramping tanpa embed (~19 MB). |
+| `.\scripts\build.ps1 -Target lite -Embed` | `dist/respect-lite/respect-lite.exe` | **Standalone Single-File** | Engine Miniblink 49 dikompresi ZSTD (level 19) dan ditanamkan ke dalam `.exe` (~32 MB). |
+| `.\scripts\build.ps1 -Target lite-x86 -Embed` | `dist/respect-lite/respect-lite-x86.exe` | **Standalone 32-bit** | Engine Miniblink 49 x86 dikompresi ZSTD (~30 MB). |
 | `.\scripts\build.ps1 -Target all -Embed` | Semua varian di atas + Demo Apps | **Full Standalone** | Membangun seluruh varian + `demo-stress-testing.exe` & `demo-stress-testing_lite.exe` untuk persiapan rilis resmi. |
 
 ### Parameter Tambahan Skrip `build.ps1`
 
-- **`-Embed`**: Menanamkan engine Chromium ke dalam file executable (menggunakan tag Go `embed132`). Wajib untuk distribusi ke pengguna akhir agar berformat single-file.
+- **`-Embed`**: Menanamkan engine web browser yang dikompresi ZSTD ke dalam file executable (menggunakan tag Go `v132,embed132` untuk Modern dan `slim,embed49` untuk Lite). Wajib untuk distribusi ke pengguna akhir agar berformat single-file mandiri.
 - **`-BuildDemo`**: Membangun aplikasi demo `dist/demo-stress-testing.exe` dan `dist/demo-stress-testing_lite.exe` dengan payload suite `stress-testing/` dan icon `assets/respect-stress.ico`. Otomatis aktif saat `-Target all -Embed`.
 - **`-Version <string>`**: Menyuntikkan string nomor versi ke `respect-app/internal/version.AppVersion` (contoh: `-Version 1.2.0`). Jika diabaikan, nomor versi dibaca dari git tag aktif atau default `dev`.
 
@@ -72,16 +73,24 @@ go build -tags v132 -ldflags="-s -w -H windowsgui" -o respect.exe .
 
 ### 🪶 Respect Lite (Miniblink 49)
 
-#### A. Arsitektur 64-bit (x64):
+#### A. Mode Single-File Mandiri (Terkompresi ZSTD ~32 MB):
 ```powershell
+# 1. Kompresi DLL engine ke assets/ (jika belum ada)
+go run scripts/compress_dll.go lite
+
+# 2. Build single-file 64-bit
 $env:GOARCH = "amd64"
-go build -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=1.0.0" -o respect-lite.exe .
+go build -tags "slim,embed49" -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=1.0.0" -o respect-lite.exe .
+
+# 3. Build single-file 32-bit (x86)
+$env:GOARCH = "386"
+go build -tags "slim,embed49" -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=1.0.0" -o respect-lite-x86.exe .
+$env:GOARCH = "amd64"
 ```
 
-#### B. Arsitektur 32-bit (x86 untuk Windows XP s.d. 11):
+#### B. Mode Slim (Pengembangan Cepat):
 ```powershell
-$env:GOARCH = "386"
-go build -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=1.0.0" -o respect-lite-x86.exe .
+go build -tags slim -ldflags="-s -w -H windowsgui" -o respect-lite.exe .
 ```
 
 > **Penjelasan Linker Flags (`-ldflags`):**
@@ -105,6 +114,9 @@ respect/
 │   ├── respect-full.ico         # Icon Windows PE resmi untuk Respect Modern
 │   ├── respect-lite.ico         # Icon Windows PE resmi untuk Respect Lite
 │   ├── respect-stress.ico       # Icon Windows PE resmi untuk Demo Stress Testing
+│   ├── blink.dll.zst            # Engine Chromium 132 terkompresi ZSTD (~23.36 MB)
+│   ├── miniblink_49_x64.dll.zst # Engine Miniblink 49 x64 terkompresi ZSTD (~14.23 MB)
+│   ├── miniblink_49_x86.dll.zst # Engine Miniblink 49 x86 terkompresi ZSTD (~12.05 MB)
 │   ├── rcedit.exe               # Utilitas stamping resource PE Win32 (embedded)
 │   └── workflow-thumbnail.jpg   # Banner alur kerja Respect
 ├── docs/                        # Dokumentasi Markdown resmi untuk GitHub Pages
@@ -125,13 +137,13 @@ respect/
 │   ├── icon/
 │   │   └── icon.go              # Ekstraksi dan injeksi icon PE via embedded rcedit
 │   ├── mb132/                   # Wrapper murni Go untuk engine Chromium 132
-│   │   ├── mb132.go             # Syscall DLL loader, VEH crash handler, hooks
-│   │   ├── embed.go             # Direct embed assets.BlinkDLLZst (tag: embed132)
-│   │   └── noembed.go           # Stub mode slim tanpa embedding (tag: !embed132)
+│   │   └── mb132.go             # Syscall DLL loader, VEH crash handler, hooks
+│   ├── mb49/                    # Manager engine terpusat Miniblink 49
+│   │   └── mb49.go              # Inisialisasi, AppData cache & ZSTD decompression
 │   ├── payload/                 # Engine Trailer Binary V1 & V2
-│   │   ├── payload.go           # Parser magic header, strip trailer, self-replicating
-│   │   ├── crypto.go            # Enkripsi & dekripsi AES-256-GCM + Zstandard
-│   │   └── types.go             # Definisi skema konfigurasi aplikasi
+│   │   ├── format.go            # Header, Magic trailer, serialisasi
+│   │   ├── reader.go            # Pembacaan trailer payload runtime
+│   │   └── writer.go            # Penulisan trailer payload, injeksi metadata
 │   ├── runtime/                 # Subsystem Runner Aplikasi Mandiri
 │   │   ├── runtime_v132.go      # In-Memory Virtual Host & hook Chromium 132
 │   │   └── runtime_v49.go       # Runner Miniblink 49
@@ -140,6 +152,7 @@ respect/
 │       └── version_v49.go       # Metadata versi Respect Lite
 ├── scripts/
 │   ├── build.ps1                # Skrip utama kompilasi multi-target & demo apps
+│   ├── compress_dll.go          # Utilitas kompresi ZSTD untuk Modern & Lite DLL
 │   └── verify_cookies_and_zombie.ps1 # Skrip verifikasi isolasi sandbox & process leak
 ├── stress-testing/              # Suite web diagnostik & stress testing browser resmi
 │   ├── index.html               # Dashboard lab HUD & tabbed telemetry

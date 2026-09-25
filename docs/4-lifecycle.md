@@ -54,9 +54,9 @@ Meskipun `respect.exe` dan `respect-lite.exe` berbagi fungsi utama yang sama (se
 | **Engine Inti** | **Chromium 132** (Blink modern 2025/2026) | **Miniblink 49** (Fork WebKit ringan) |
 | **Target Arsitektur CPU** | **64-bit (x64)** | **64-bit (x64)** & **32-bit (x86)** |
 | **Dukungan OS Windows** | Windows 7 SP1, 8, 10, 11 (64-bit) | Windows XP SP3 s.d. 11 (32-bit & 64-bit) |
-| **Packaging Engine DLL** | Terkompresi **Zstandard (ZSTD)** level 19 (`blink.dll.zst`, ~23.36 MB) | Raw Uncompressed PE DLL di dalam package `epkgs/blink` (~40–45 MB) |
-| **Ukuran Binary Standalone** | **~27.16 MB** | **~57.73 MB** (x64) / **~50.78 MB** (x86) |
-| **Mekanisme Pemuatan DLL** | Lazy extract ke `%LocalAppData%\respect_desktop\engine\` dengan validasi ukuran byte (Start instan **0 ms** saat cache ada) | Ekstraksi otomatis per eksekusi oleh `epkgs/blink` ke folder `%TEMP%` |
+| **Packaging Engine DLL** | Terkompresi **Zstandard (ZSTD)** level 19 (`blink.dll.zst`, ~23.36 MB) | Terkompresi **Zstandard (ZSTD)** level 19 (`miniblink_49_x64.dll.zst`, ~14.23 MB / `miniblink_49_x86.dll.zst`, ~12.05 MB) |
+| **Ukuran Binary Standalone** | **~31.56 MB** | **~32.45 MB** (x64) / **~30.06 MB** (x86) |
+| **Mekanisme Pemuatan DLL** | Lazy extract ke `%LocalAppData%\respect_desktop\engine\` dengan validasi ukuran byte (Start instan **0 ms** saat cache ada) | Lazy extract terisolasi ke `%LocalAppData%\respect_desktop\engine_v49\` via `internal/mb49` (Start instan **0 ms** saat cache ada) |
 | **Penanganan Crash Engine** | **Windows Vectored Exception Handler (VEH)** mencegat `STATUS_BREAKPOINT` (0x80000003) | Runtime bawaan WebKit |
 | **Protokol IPC Frontend** | Native Chromium `window.mbQuery(1, payload, cb)` | Miniblink Channel `window.ipc.invoke(channel, payload)` |
 | **Penanganan Popup / New Tab** | Intersepsi native via `procMbOnCreateView` (redirect ke jendela aktif) | Miniblink popup window default |
@@ -158,9 +158,11 @@ TAHAP                   RESPECT MODERN (respect.exe)             RESPECT LITE (r
   3. *ZSTD Decompression*: Jika file cache belum ada (first run), mendekompresi `assets.BlinkDLLZst` (23.36 MB) menggunakan decoder streaming `github.com/klauspost/compress/zstd` ke folder cache sistem. Waktu ekstraksi: **~0.15 detik**.
 - Memasang **Windows Vectored Exception Handler (VEH)** via kernel32 `AddVectoredExceptionHandler`. Menangkap dan memotong kode `STATUS_BREAKPOINT` (0x80000003 / `int 3`) yang sering dipicu oleh assertion `DCHECK` Chromium saat merender halaman web modern yang kompleks, sehingga window tidak pernah crash atau force close secara misterius.
 
-#### 🪶 Respect Lite (`github.com/epkgs/blink`):
-- Pemuatan engine didelegasikan sepenuhnya ke package pihak ketiga `epkgs/blink`.
-- Engine DLL Miniblink 49 (~40–45 MB mentah) diekstrak secara otomatis oleh runtime Go ke folder temporary Windows pengguna (`%TEMP%`) di setiap eksekusi baru atau saat proses dimulai.
+#### 🪶 Respect Lite (`internal/mb49/mb49.go` & `github.com/epkgs/blink`):
+- Pemuatan engine dikelola terpusat oleh package `internal/mb49`:
+  1. *System Engine Cache*: Memeriksa `%LocalAppData%\respect_desktop\engine_v49\miniblink_4975_<arch>\miniblink_49.dll`. Jika file sudah ada dan ukurannya sesuai (42.510.848 byte untuk x64, 35.473.920 byte untuk x86), file langsung dimuat via `blink.WithDllFile(targetDLL)`. Waktu inisialisasi: **0 ms**.
+  2. *ZSTD Decompression*: Jika file cache belum ada (first run), mendekompresi `assets.Miniblink49DLLZst` (14.23 MB x64 / 12.05 MB x86) ke folder cache sistem secara atomik. Waktu ekstraksi: **~0.05 detik**.
+- Menggunakan build tag `slim` bawaan `epkgs/blink` sehingga compiler Go tidak lagi menanamkan DLL mentah berukuran 42.5 MB ke dalam executable.
 - Memanggil `win.SetProcessDPIAware()` agar rendering font dan elemen antarmuka tidak buram pada layar High DPI.
 
 ---
@@ -231,6 +233,9 @@ Struktur direktori runtime pengguna diisolasi penuh:
 %LocalAppData%\respect_desktop\
 ├── engine\
 │   └── blink.dll                 <-- Cache engine Chromium 132 (dibagi bersama)
+├── engine_v49\
+│   └── miniblink_4975_x64\
+│       └── miniblink_49.dll      <-- Cache engine Miniblink 49 (ZSTD dekompresi)
 └── apps\
     ├── kasir-toko\               <-- Sandbox Aplikasi A (berdasarkan nama EXE)
     │   ├── cookies.dat
