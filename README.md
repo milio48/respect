@@ -82,8 +82,8 @@ Untuk panduan mendalam mengenai fitur teknis, parameter CLI lanjutan, arsitektur
 ## 🔗 Kredit & Tautan Komunitas
 
 Respect Desktop dapat terwujud berkat karya luar biasa dari komunitas open source:
-- **Core Engine C++**: [Miniblink 49](https://github.com/weolar/miniblink49/) dikembangkan oleh **Weolar**.
-- **Go Binding Miniblink**: [epkgs/blink](https://deepwiki.com/epkgs/blink).
+- **Core Engine C++**: [Miniblink 49](https://github.com/weolar/miniblink49/) oleh **Weolar** — dilisensikan di bawah [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Binary Respect Desktop menyertakan DLL Miniblink secara tertanam (*embedded*).
+- **Go Binding Miniblink**: [epkgs/blink](https://github.com/epkgs/blink) — dilisensikan di bawah [MIT License](https://github.com/epkgs/blink/blob/main/LICENSE).
 
 ---
 
