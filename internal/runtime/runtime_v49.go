@@ -74,8 +74,7 @@ try {
 		if cfg.ServerMode || cfg.Mode == "server" {
 			srv, err := localserver.Start(p.Files)
 			if err == nil {
-				serverURL := fmt.Sprintf("http://127.0.0.1:%d/%s", srv.Port, entryFile)
-				view.LoadURL(serverURL)
+				view.LoadURL(srv.URL(entryFile))
 				view.ShowWindow()
 				view.OnDestroy(func() {
 					srv.Close()

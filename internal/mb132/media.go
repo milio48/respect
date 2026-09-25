@@ -1,15 +1,16 @@
 package mb132
 
-// media.go — Pemutar media native memakai WinMM MCI (fitur bawaan Windows).
+// media.go — Pemutar media native memakai Windows Media Foundation (MFPlay)
+// dan fallback WinMM MCI (fitur bawaan Windows).
 //
-// Engine Miniblink tidak punya media pipeline, jadi playback dialihkan ke MCI:
-//   Audio:  mciSendString("open ... alias X; play X")
-//   Video:  MCI merender ke child-window overlay di atas webview (play X window HWND)
+// Engine Miniblink tidak memiliki Chromium media pipeline internal, sehingga
+// pemutaran media didelegasikan ke subsistem native Windows:
+//   - Audio: Media Foundation / MCI (MP3, WAV, AAC, M4A, OGG/WMA)
+//   - Video: Media Foundation merender ke child-window HWND overlay di atas webview
+//            (Mendukung MP4 [H.264 + AAC], WMV, AVI via DirectX Video Acceleration)
 //
-// MCI memakai codec sistem Windows (bukan DLL aplikasi pihak ketiga).
-// Format yang didukung bergantung pada device codec Windows; MP3/WAV/AVI/WMV/MPG
-// umumnya jalan. MP4/H.264 TIDAK didukung MCI — untuk itu diperlukan dekoder
-// open-source (mis. ffmpeg), yang tidak dibundel di sini.
+// Kode ini murni memakai API bawaan Windows (mfplay.dll & winmm.dll),
+// 0 KB overhead, tanpa membengkakkan ukuran binary, dan tanpa dependensi luar.
 
 import (
 	"crypto/sha1"
@@ -30,25 +31,61 @@ import (
 )
 
 var (
+	modMfplay                = syscall.NewLazyDLL("mfplay.dll")
+	procMFPCreateMediaPlayer = modMfplay.NewProc("MFPCreateMediaPlayer")
+
 	winmmMedia             = syscall.NewLazyDLL("winmm.dll")
 	procMciSendStringW     = winmmMedia.NewProc("mciSendStringW")
 	procMciGetErrorStringW = winmmMedia.NewProc("mciGetErrorStringW")
-	procCreateWindowExW    = user32.NewProc("CreateWindowExW")
-	procDestroyWindow      = user32.NewProc("DestroyWindow")
+
+	procCreateWindowExW = user32.NewProc("CreateWindowExW")
+	procDestroyWindow   = user32.NewProc("DestroyWindow")
 )
+
+var guidMFP100ns [16]byte // GUID_NULL = 100ns position type
+
+type mfpPropVariant struct {
+	vt         uint16
+	wReserved1 uint16
+	wReserved2 uint16
+	wReserved3 uint16
+	hVal       int64
+	padding    int64 // Pad struct to exact 24-byte PROPVARIANT in 64-bit Windows
+}
+
+type mfpRect struct {
+	Left, Top, Right, Bottom int32
+}
 
 const (
-	wsChild   = 0x40000000
-	wsVisible = 0x10000000
+	wsChild           = 0x40000000
+	wsVisible         = 0x10000000
+	swHide            = 0
+	swShowNoActivate  = 4
+	swpAsyncWindowPos = 0x4000
 )
 
+func mfpCall(obj uintptr, index int, args ...uintptr) uintptr {
+	if obj == 0 {
+		return 0x80004005 // E_FAIL
+	}
+	vtbl := *(**uintptr)(unsafe.Pointer(obj))
+	method := *(*uintptr)(unsafe.Add(unsafe.Pointer(vtbl), uintptr(index)*unsafe.Sizeof(uintptr(0))))
+	allArgs := append([]uintptr{obj}, args...)
+	r, _, _ := syscall.SyscallN(method, allArgs...)
+	return r
+}
+
+
 type mediaSession struct {
-	alias    string
+	player   uintptr // IMFPMediaPlayer (MFPlay) jika aktif
+	alias    string  // MCI alias jika fallback ke MCI
 	video    bool
 	hwnd     uintptr
 	path     string
 	tempFile bool
 	lengthMs int64
+	backend  string
 }
 
 var (
@@ -185,9 +222,15 @@ func (s *mediaSession) close() {
 	if s == nil {
 		return
 	}
+	if s.player != 0 {
+		mfpCall(s.player, 34) // Shutdown
+		mfpCall(s.player, 2)  // Release
+		s.player = 0
+	}
 	if s.alias != "" {
 		mciSend("stop " + s.alias)
 		mciSend("close " + s.alias)
+		s.alias = ""
 	}
 	if s.hwnd != 0 {
 		procDestroyWindow.Call(s.hwnd)
@@ -266,9 +309,60 @@ func (wv *WebView) mediaOpenSession(handle, path string, temp, video bool) (map[
 		delete(mediaSessions, handle)
 	}
 	mediaCounter++
-	alias := fmt.Sprintf("respect_media_%d", mediaCounter)
 	mediaMu.Unlock()
 
+	var overlayHwnd uintptr
+	if video {
+		overlayHwnd = createOverlayWindow(wv.hwnd)
+	}
+
+	// 1. Coba gunakan Windows Media Foundation (mfplay.dll)
+	// Media Foundation natively mendukung MP4 (H.264/AAC), MP3, WAV, WMV, AVI
+	if procMFPCreateMediaPlayer.Find() == nil {
+		urlW, err := syscall.UTF16PtrFromString(path)
+		if err == nil {
+			var player uintptr
+			hr, _, _ := procMFPCreateMediaPlayer.Call(
+				0, 0, 0, 0, overlayHwnd,
+				uintptr(unsafe.Pointer(&player)),
+			)
+			if hr == 0 && player != 0 {
+				var item uintptr
+				// CreateMediaItemFromURL synchronously (fSync = 1)
+				r := mfpCall(player, 14, uintptr(unsafe.Pointer(urlW)), 1, 0, uintptr(unsafe.Pointer(&item)))
+				if r == 0 && item != 0 {
+					var durPV mfpPropVariant
+					mfpCall(item, 13, uintptr(unsafe.Pointer(&guidMFP100ns[0])), uintptr(unsafe.Pointer(&durPV)))
+					lengthMs := durPV.hVal / 10000
+
+					mfpCall(player, 16, item) // SetMediaItem
+					mfpCall(item, 2)          // Release item
+
+					sess := &mediaSession{
+						player:   player,
+						video:    video,
+						hwnd:     overlayHwnd,
+						path:     path,
+						tempFile: temp,
+						lengthMs: lengthMs,
+						backend:  "mfplay",
+					}
+
+					mediaMu.Lock()
+					mediaSessions[handle] = sess
+					mediaMu.Unlock()
+
+					return map[string]interface{}{"duration": lengthMs, "backend": "mfplay"}, nil
+				}
+				// Gagal load item, shutdown player
+				mfpCall(player, 34)
+				mfpCall(player, 2)
+			}
+		}
+	}
+
+	// 2. Fallback ke WinMM MCI jika Media Foundation tidak tersedia
+	alias := fmt.Sprintf("respect_media_%d", mediaCounter)
 	attempts := []string{
 		fmt.Sprintf("open \"%s\" alias %s", path, alias),
 		fmt.Sprintf("open \"%s\" type mpegvideo alias %s", path, alias),
@@ -285,17 +379,17 @@ func (wv *WebView) mediaOpenSession(handle, path string, temp, video bool) (map[
 		}
 	}
 	if !opened {
+		if overlayHwnd != 0 {
+			procDestroyWindow.Call(overlayHwnd)
+		}
 		errText := mciErrorString(lastErr)
 		if temp {
 			_ = os.Remove(path)
 		}
 		if errText == "" {
-			errText = "format tidak didukung codec Windows"
+			errText = "format tidak didukung codec sistem Windows"
 		}
-		if video {
-			return nil, fmt.Errorf("video tidak bisa diputar embedded (%s, code %d). MCI/Windows tidak mendukung format ini; dibutuhkan dekoder open-source (ffmpeg).", errText, lastErr)
-		}
-		return nil, fmt.Errorf("MCI gagal membuka media: %s (code %d)", errText, lastErr)
+		return nil, fmt.Errorf("gagal membuka media: %s (code %d)", errText, lastErr)
 	}
 	mciSend("set " + alias + " time format milliseconds")
 
@@ -304,7 +398,15 @@ func (wv *WebView) mediaOpenSession(handle, path string, temp, video bool) (map[
 		lengthMs, _ = strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 	}
 
-	sess := &mediaSession{alias: alias, video: video, path: path, tempFile: temp, lengthMs: lengthMs}
+	sess := &mediaSession{
+		alias:    alias,
+		video:    video,
+		hwnd:     overlayHwnd,
+		path:     path,
+		tempFile: temp,
+		lengthMs: lengthMs,
+		backend:  "mci",
+	}
 	mediaMu.Lock()
 	mediaSessions[handle] = sess
 	mediaMu.Unlock()
@@ -317,17 +419,21 @@ func (wv *WebView) mediaPlay(handle string) (map[string]interface{}, error) {
 	if sess == nil {
 		return nil, fmt.Errorf("media belum dimuat")
 	}
+
+	if sess.player != 0 {
+		if sess.video && sess.hwnd != 0 {
+			procShowWindow.Call(sess.hwnd, swShowNoActivate)
+		}
+		r := mfpCall(sess.player, 3) // IMFPMediaPlayer::Play
+		if r != 0 {
+			return nil, fmt.Errorf("Media Foundation play gagal (0x%x)", uint32(r))
+		}
+		return map[string]interface{}{"ok": true}, nil
+	}
+
 	cmd := "play " + sess.alias
-	if sess.video {
-		mediaMu.Lock()
-		if sess.hwnd == 0 {
-			sess.hwnd = createOverlayWindow(wv.hwnd)
-		}
-		hwnd := sess.hwnd
-		mediaMu.Unlock()
-		if hwnd != 0 {
-			cmd = fmt.Sprintf("play %s window %d", sess.alias, hwnd)
-		}
+	if sess.video && sess.hwnd != 0 {
+		cmd = fmt.Sprintf("play %s window %d", sess.alias, sess.hwnd)
 	}
 	if _, code := mciSend(cmd); code != 0 {
 		return nil, fmt.Errorf("MCI play gagal (code %d)", code)
@@ -340,6 +446,22 @@ func (wv *WebView) mediaSimple(handle, action string) (map[string]interface{}, e
 	if sess == nil {
 		return nil, fmt.Errorf("media belum dimuat")
 	}
+
+	if sess.player != 0 {
+		switch action {
+		case "pause":
+			mfpCall(sess.player, 4) // Pause
+		case "resume":
+			mfpCall(sess.player, 3) // Play
+		case "stop":
+			mfpCall(sess.player, 5) // Stop
+			if sess.video && sess.hwnd != 0 {
+				procShowWindow.Call(sess.hwnd, swHide)
+			}
+		}
+		return map[string]interface{}{"ok": true}, nil
+	}
+
 	if _, code := mciSend(action + " " + sess.alias); code != 0 {
 		if action == "resume" {
 			if _, c2 := mciSend("play " + sess.alias); c2 == 0 {
@@ -356,6 +478,18 @@ func (wv *WebView) mediaSeek(handle string, ms int64) error {
 	if sess == nil {
 		return fmt.Errorf("media belum dimuat")
 	}
+
+	if sess.player != 0 {
+		var pv mfpPropVariant
+		pv.vt = 20 // VT_I8
+		pv.hVal = ms * 10000
+		r := mfpCall(sess.player, 7, uintptr(unsafe.Pointer(&guidMFP100ns[0])), uintptr(unsafe.Pointer(&pv)))
+		if r != 0 {
+			return fmt.Errorf("Media Foundation seek gagal (0x%x)", uint32(r))
+		}
+		return nil
+	}
+
 	if _, code := mciSend(fmt.Sprintf("seek %s to %d", sess.alias, ms)); code != 0 {
 		return fmt.Errorf("MCI seek gagal (code %d)", code)
 	}
@@ -373,6 +507,13 @@ func (wv *WebView) mediaVolume(handle string, volume float64) error {
 	if volume > 1 {
 		volume = 1
 	}
+
+	if sess.player != 0 {
+		vol32 := float32(volume)
+		mfpCall(sess.player, 20, uintptr(*(*uint32)(unsafe.Pointer(&vol32))))
+		return nil
+	}
+
 	if _, code := mciSend(fmt.Sprintf("setaudio %s volume to %d", sess.alias, int(volume*1000))); code != 0 {
 		return fmt.Errorf("MCI volume gagal (code %d)", code)
 	}
@@ -384,6 +525,29 @@ func (wv *WebView) mediaStatus(handle string) (map[string]interface{}, error) {
 	if sess == nil {
 		return nil, fmt.Errorf("media belum dimuat")
 	}
+
+	if sess.player != 0 {
+		var posPV mfpPropVariant
+		rPos := mfpCall(sess.player, 8, uintptr(unsafe.Pointer(&guidMFP100ns[0])), uintptr(unsafe.Pointer(&posPV)))
+		pos := int64(0)
+		if rPos == 0 && posPV.hVal > 0 {
+			pos = posPV.hVal / 10000
+		}
+
+		var state uint32
+		mfpCall(sess.player, 13, uintptr(unsafe.Pointer(&state)))
+		mode := "stopped"
+		switch state {
+		case 3: // MFP_MEDIAPLAYER_STATE_PLAYING
+			mode = "playing"
+		case 2: // MFP_MEDIAPLAYER_STATE_PAUSED
+			mode = "paused"
+		case 1: // MFP_MEDIAPLAYER_STATE_STOPPED
+			mode = "stopped"
+		}
+		return map[string]interface{}{"position": pos, "duration": sess.lengthMs, "mode": mode}, nil
+	}
+
 	pos := int64(0)
 	if v, code := mciSend("status " + sess.alias + " position"); code == 0 {
 		pos, _ = strconv.ParseInt(strings.TrimSpace(v), 10, 64)
@@ -431,14 +595,8 @@ func (wv *WebView) mediaRect(handle string, x, y, w, h int) error {
 	if sess == nil || !sess.video {
 		return nil
 	}
-	mediaMu.Lock()
 	if sess.hwnd == 0 {
-		sess.hwnd = createOverlayWindow(wv.hwnd)
-	}
-	hwnd := sess.hwnd
-	mediaMu.Unlock()
-	if hwnd == 0 {
-		return fmt.Errorf("gagal membuat overlay video")
+		return nil
 	}
 	if w < 1 {
 		w = 1
@@ -446,6 +604,11 @@ func (wv *WebView) mediaRect(handle string, x, y, w, h int) error {
 	if h < 1 {
 		h = 1
 	}
-	procSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoZOrder|swpShowWindow|0x0010)
+	procSetWindowPos.Call(
+		sess.hwnd, 0,
+		uintptr(x), uintptr(y), uintptr(w), uintptr(h),
+		swpNoZOrder|swpShowWindow|0x0010|swpAsyncWindowPos,
+	)
 	return nil
 }
+

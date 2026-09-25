@@ -1,6 +1,8 @@
 package localserver
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"mime"
 	"net"
@@ -12,16 +14,18 @@ import (
 
 // Server mengelola in-memory HTTP server lokal pada 127.0.0.1.
 // Server ini menyajikan file langsung dari RAM (tanpa ekstraksi ke hard disk),
-// dan mengaktifkan Secure Context (isSecureContext: true, crypto.subtle, navigator.clipboard)
-// di engine Chromium/Miniblink.
+// mengaktifkan Secure Context (isSecureContext: true, crypto.subtle, navigator.clipboard),
+// dan mengamankan endpoint dari akses luar aplikasi via one-time token + HttpOnly cookie.
 type Server struct {
 	Port     int
+	Token    string
 	listener net.Listener
 	httpSrv  *http.Server
 	once     sync.Once
 }
 
-// Start menginisialisasi dan menjalankan HTTP server in-memory pada port acak loopback 127.0.0.1:0.
+// Start menginisialisasi dan menjalankan HTTP server in-memory pada port acak loopback 127.0.0.1:0
+// dengan token acak 128-bit untuk mencegah akses dari luar proses Respect.
 func Start(files map[string][]byte) (*Server, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -29,6 +33,10 @@ func Start(files map[string][]byte) (*Server, error) {
 	}
 
 	port := listener.Addr().(*net.TCPAddr).Port
+
+	tokenBytes := make([]byte, 16)
+	_, _ = rand.Read(tokenBytes)
+	token := hex.EncodeToString(tokenBytes)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +46,46 @@ func Start(files map[string][]byte) (*Server, error) {
 		}
 		cleanPath := strings.TrimPrefix(filepath.ToSlash(reqPath), "/")
 
-		// Cari file di map virtual in-memory
+		// 1. Verifikasi Keamanan: Cek cookie atau query token
+		authed := false
+		if c, err := r.Cookie("__respect_token__"); err == nil && c.Value == token {
+			authed = true
+		}
+
+		q := r.URL.Query()
+		tokenParam := q.Get("token")
+		if tokenParam == token {
+			// Set HttpOnly session cookie
+			http.SetCookie(w, &http.Cookie{
+				Name:     "__respect_token__",
+				Value:    token,
+				Path:     "/",
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			// Jika navigasi halaman utama (HTML), bersihkan token dari URL bar
+			// melalui HTTP 302 Redirect agar URL bersih dan Service Worker scope rapi.
+			ext := strings.ToLower(filepath.Ext(cleanPath))
+			if ext == "" || ext == ".html" || ext == ".htm" {
+				q.Del("token")
+				cleanURL := "/" + cleanPath
+				if len(q) > 0 {
+					cleanURL += "?" + q.Encode()
+				}
+				http.Redirect(w, r, cleanURL, http.StatusFound)
+				return
+			}
+			authed = true
+		}
+
+		// Blokir akses tanpa token / cookie sah (mencegah browser luar/malware mengakses port)
+		if !authed {
+			http.Error(w, "403 Forbidden: Akses tidak diizinkan di luar runtime Respect", http.StatusForbidden)
+			return
+		}
+
+		// 2. Cari file di map virtual in-memory
 		data, found := files[cleanPath]
 		if !found {
 			// Coba cari alternatif (misal index.html untuk subdirektori)
@@ -53,7 +100,7 @@ func Start(files map[string][]byte) (*Server, error) {
 			return
 		}
 
-		// Tentukan MIME type
+		// 3. Tentukan MIME type
 		ext := strings.ToLower(filepath.Ext(cleanPath))
 		contentType := mime.TypeByExtension(ext)
 		if contentType == "" {
@@ -103,8 +150,10 @@ func Start(files map[string][]byte) (*Server, error) {
 			}
 		}
 
+		// 4. Header Keamanan
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(data)
@@ -116,6 +165,7 @@ func Start(files map[string][]byte) (*Server, error) {
 
 	s := &Server{
 		Port:     port,
+		Token:    token,
 		listener: listener,
 		httpSrv:  srv,
 	}
@@ -125,6 +175,15 @@ func Start(files map[string][]byte) (*Server, error) {
 	}()
 
 	return s, nil
+}
+
+// URL menghasilkan URL awal terproteksi token untuk dimuat oleh WebView.
+func (s *Server) URL(entryFile string) string {
+	clean := strings.TrimPrefix(filepath.ToSlash(entryFile), "/")
+	if clean == "" {
+		clean = "index.html"
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/%s?token=%s", s.Port, clean, s.Token)
 }
 
 // Close menghentikan server dan melepaskan port loopback.

@@ -594,11 +594,11 @@ func (wv *WebView) handleCompatQuery(req string) string {
 
 	case "media.info":
 		return okJSON(map[string]interface{}{
-			"mci":   true,
-			"vlc":   false,
-			"audio": "MP3/WAV via MCI (codec Windows)",
-			"video": "hanya format yang didukung codec Windows (AVI/WMV/MPG)",
-			"hint":  "MP4/H.264 butuh dekoder open-source (ffmpeg); belum dibundel.",
+			"mfplay": true,
+			"mci":    true,
+			"audio":  "MP3/WAV/AAC/M4A via Windows Media Foundation & MCI",
+			"video":  "MP4 (H.264+AAC), WMV, AVI via Media Foundation & HWND Overlay",
+			"hint":   "Pemutaran native HWND overlay terintegrasi tag HTML <video>",
 		})
 
 	default:
@@ -814,7 +814,26 @@ func compatPreloadJS() string {
           try {
             var r = el.getBoundingClientRect();
             if (r.width < 1 || r.height < 1) return;
-            invoke('media.rect', { handle: el.__respect_handle, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+            var x = Math.round(r.left), y = Math.round(r.top), w = Math.round(r.width), h = Math.round(r.height);
+            if (el.__last_rect && el.__last_rect.x === x && el.__last_rect.y === y && el.__last_rect.w === w && el.__last_rect.h === h) return;
+            el.__last_rect = { x: x, y: y, w: w, h: h };
+            invoke('media.rect', { handle: el.__respect_handle, x: x, y: y, w: w, h: h });
+          } catch (e) {}
+        }
+        function _mCleanup(el) {
+          try {
+            if (!el) return;
+            if (el.__respect_handle) {
+              _mStopPoll(el);
+              invoke('media.dispose', { handle: el.__respect_handle }).catch(function () {});
+              el.__respect_handle = null;
+            }
+            if (el.getElementsByTagName) {
+              var vids = el.getElementsByTagName('video');
+              for (var i = 0; i < vids.length; i++) _mCleanup(vids[i]);
+              var auds = el.getElementsByTagName('audio');
+              for (var j = 0; j < auds.length; j++) _mCleanup(auds[j]);
+            }
           } catch (e) {}
         }
         function _mStartPoll(el) {
@@ -1047,6 +1066,8 @@ func compatPreloadJS() string {
               for (var i = 0; i < mut.length; i++) {
                 var nodes = mut[i].addedNodes || [];
                 for (var j = 0; j < nodes.length; j++) _mNeutralize(nodes[j]);
+                var rems = mut[i].removedNodes || [];
+                for (var k = 0; k < rems.length; k++) _mCleanup(rems[k]);
               }
             }).observe(document.documentElement, { childList: true, subtree: true });
           }

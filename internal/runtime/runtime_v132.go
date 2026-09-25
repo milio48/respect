@@ -49,8 +49,7 @@ func Run(p *payload.Payload) {
 				view.OnDestroy(func() {
 					srv.Close()
 				})
-				serverURL := fmt.Sprintf("http://127.0.0.1:%d/%s", srv.Port, entryFile)
-				view.LoadURL(serverURL)
+				view.LoadURL(srv.URL(entryFile))
 				view.Show()
 				mb132.RunMessageLoop()
 				return
