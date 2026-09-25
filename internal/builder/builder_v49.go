@@ -21,7 +21,17 @@ var static embed.FS
 
 // Run menjalankan antarmuka grafis (GUI) builder respect-lite.exe menggunakan Miniblink 49.
 func Run() {
-	app := blink.NewApp()
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
+	}
+	engineDir := filepath.Join(localAppData, "respect_desktop", "engine_v49")
+	_ = os.MkdirAll(engineDir, 0755)
+
+	app := blink.NewApp(
+		blink.WithTempPath(engineDir),
+		blink.WithDllFile("miniblink_49.dll"),
+	)
 	defer app.Exit()
 
 	res, err := fs.Sub(static, "static")
@@ -38,10 +48,6 @@ func Run() {
 	view.Window.MoveToCenter()
 
 	// Isolasi cookie dan local storage agar tidak mencemari direktori aplikasi
-	localAppData := os.Getenv("LOCALAPPDATA")
-	if localAppData == "" {
-		localAppData = os.TempDir()
-	}
 	appDir := filepath.Join(localAppData, "respect_desktop", "apps", "respect-builder")
 	_ = os.MkdirAll(filepath.Join(appDir, "storage"), 0755)
 	view.SetCookieJarFullPath(filepath.Join(appDir, "cookie.dat"))

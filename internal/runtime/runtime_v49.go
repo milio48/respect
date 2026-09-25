@@ -30,7 +30,19 @@ func Run(p *payload.Payload) {
 	cfg := &p.Config
 	cfg.Defaults()
 
-	app := blink.NewApp()
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
+	}
+	engineDir := filepath.Join(localAppData, "respect_desktop", "engine_v49")
+	_ = os.MkdirAll(engineDir, 0755)
+
+	// Pastikan Miniblink memuat miniblink_49.dll dari AppData terisolasi agar tidak mengotori %TEMP%
+	// dan tidak bentrok dengan blink.dll (Chromium 132 Modern) jika berada di direktori yang sama
+	app := blink.NewApp(
+		blink.WithTempPath(engineDir),
+		blink.WithDllFile("miniblink_49.dll"),
+	)
 	defer app.Exit()
 
 	// Daftarkan handler IPC standar untuk runtime Lite
@@ -125,6 +137,9 @@ try {
 `)
 
 	view := app.CreateWebWindowPopup(blink.WithWebWindowSize(int32(cfg.Width), int32(cfg.Height)))
+	if view == nil || view.Hwnd == 0 || view.GetWindowHandle() == 0 {
+		return
+	}
 	if len(assets.RespectIcon) > 0 {
 		view.Window.SetIconFromBytes(assets.RespectIcon)
 	}
@@ -143,10 +158,6 @@ try {
 	if exePath, err := os.Executable(); err == nil {
 		base := filepath.Base(exePath)
 		appName = strings.TrimSuffix(base, filepath.Ext(base))
-	}
-	localAppData := os.Getenv("LOCALAPPDATA")
-	if localAppData == "" {
-		localAppData = os.TempDir()
 	}
 	appDir := filepath.Join(localAppData, "respect_desktop", "apps", appName)
 	_ = os.MkdirAll(filepath.Join(appDir, "storage"), 0755)
