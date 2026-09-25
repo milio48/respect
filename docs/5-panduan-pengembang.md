@@ -113,7 +113,8 @@ respect/
 │   ├── 2-perbandingan-edisi.md  # Komparasi Modern vs Lite & 88 Standar Web
 │   ├── 3-arsitektur-virtual-host.md # Virtual Host in-memory & enkripsi V2
 │   ├── 4-lifecycle.md           # Siklus hidup internal, thread loop & divergence
-│   └── 5-panduan-pengembang.md  # Dokumen panduan kompilasi ini
+│   ├── 5-panduan-pengembang.md  # Dokumen panduan kompilasi ini
+│   └── 6-kompatibilitas-dan-batasan-engine.md # Standar web, media native & batasan
 ├── internal/
 │   ├── builder/                 # Subsystem GUI Builder
 │   │   ├── builder_v132.go      # Adapter GUI untuk engine Chromium 132
@@ -147,7 +148,6 @@ respect/
 │   └── js/                      # Modul fingerprint, apidump, capability, media, stress
 ├── go.mod                       # Definisi modul Go
 ├── go.sum                       # Checksum ketergantungan modul
-├── lifecycle.md                 # Salinan arsitektur teknis inti di root
 ├── main.go                      # Entry point: CLI parser, trailer check, app routing
 └── README.md                    # Ringkasan cepat & panduan pengguna di root
 ```
@@ -192,4 +192,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify_cookies_and_zombie.ps1
 
 ---
 
-[⬅️ Sebelumnya: 4. Lifecycle & Runtime Internal](4-lifecycle.md) | [Kembali ke Daftar Isi 🏠](index.md)
+[⬅️ Sebelumnya: 4. Lifecycle & Runtime Internal](4-lifecycle.md) | [Daftar Isi 🏠](index.md) | [Selanjutnya: 6. Kompatibilitas & Batasan Engine ➡️](6-kompatibilitas-dan-batasan-engine.md)

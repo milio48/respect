@@ -133,3 +133,8 @@ Respect menyediakan dua pilihan penyajian aplikasi web:
    - Gunakan flag `--server` saat build agar Web Crypto API (`crypto.subtle`) aktif dalam Secure Context.
 4. **Jika Anda Membutuhkan 3D Canvas (Three.js) atau Video Call (WebRTC)**:
    - Respect Desktop **bukan** pilihan yang tepat untuk kebutuhan game 3D WebGL atau video call WebRTC karena ketiadaan GPU process internal. Untuk kebutuhan tersebut, pengembang disarankan menggunakan runtime browser penuh seperti WebView2 atau Electron.
+
+---
+
+[⬅️ Sebelumnya: 5. Panduan Pengembang](5-panduan-pengembang.md) | [Kembali ke Daftar Isi 🏠](index.md)
+

@@ -68,6 +68,8 @@ Untuk panduan mendalam mengenai fitur teknis, parameter CLI lanjutan, arsitektur
 - 🔒 **[3. Arsitektur In-Memory Virtual Host & Enkripsi](docs/3-arsitektur-virtual-host.md)** — Runtime zero-disk, zero-socket port, dan enkripsi payload AES-256-GCM.
 - ⚙️ **[4. Lifecycle & Alur Eksekusi Internal](docs/4-lifecycle.md)** — Threading model, window hooks, Win32 message loop, dan self-replication.
 - 🛠️ **[5. Panduan Pengembang & Kompilasi](docs/5-panduan-pengembang.md)** — Prasyarat, skrip `build.ps1`, Go build tags, dan CI/CD GitHub Actions.
+- 🧭 **[6. Kompatibilitas Standar Web, Media & Batasan Engine](docs/6-kompatibilitas-dan-batasan-engine.md)** — Pemutaran media native (MP4/H.264), Secure Context, dan batas nyata engine.
+
 
 ---
 
