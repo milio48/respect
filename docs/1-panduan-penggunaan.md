@@ -8,6 +8,12 @@ Respect Desktop menyediakan dua metode fleksibel untuk membuat aplikasi desktop 
 
 Antarmuka GUI Builder aktif secara otomatis saat Anda mengeklik ganda file executable `respect.exe` atau `respect-lite.exe` yang belum dipasangi aplikasi.
 
+<p align="center">
+  <img src="../assets/respect-ss.jpg" alt="Tampilan GUI Desktop Builder" width="480">
+  <br>
+  <em>Antarmuka GUI Desktop Builder Respect Desktop</em>
+</p>
+
 ### Langkah-Langkah Penggunaan:
 1. **Unduh Executable**: Ambil `respect.exe` (Modern) atau `respect-lite.exe` (Lite) dari halaman [GitHub Releases](https://github.com/milio48/respect/releases).
 2. **Jalankan Aplikasi**: Klik ganda file `.exe`. Jendela Desktop EXE Builder akan terbuka.

@@ -10,6 +10,12 @@
   <img src="assets/workflow-thumbnail.jpg" alt="Respect Desktop Workflow" width="100%">
 </p>
 
+<p align="center">
+  <img src="assets/respect-ss.jpg" alt="Tampilan GUI Desktop Builder Respect Desktop" width="480">
+  <br>
+  <em>Tampilan GUI Desktop Builder — ubah web/HTML menjadi .exe hanya dalam beberapa detik</em>
+</p>
+
 **Respect Desktop** adalah utilitas Windows praktis untuk mengubah situs website, folder aplikasi web (React, Vue, Svelte, Vite), atau file HTML menjadi aplikasi desktop (`.exe`) mandiri siap pakai — **hanya 1 file `.exe`, tanpa perlu instalasi server, Node.js, atau coding tambahan!**
 
 ---
