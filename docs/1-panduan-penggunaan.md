@@ -9,7 +9,7 @@ Respect Desktop menyediakan dua metode fleksibel untuk membuat aplikasi desktop 
 Antarmuka GUI Builder aktif secara otomatis saat Anda mengeklik ganda file executable `respect.exe` atau `respect-lite.exe` yang belum dipasangi aplikasi.
 
 <p align="center">
-  <img src="../assets/respect-ss.jpg" alt="Tampilan GUI Desktop Builder" width="480">
+  <img src="https://raw.githubusercontent.com/milio48/respect/main/assets/respect-ss.jpg" alt="Tampilan GUI Desktop Builder" width="480">
   <br>
   <em>Antarmuka GUI Desktop Builder Respect Desktop</em>
 </p>
