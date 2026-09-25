@@ -562,9 +562,9 @@
     <!-- Mode Selector -->
     <div class="segmented-control" role="group" aria-label="Pilih mode sumber konten">
       <button type="button" class="seg-btn active" data-mode="url" aria-pressed="true">🌐 URL Website</button>
-      <button type="button" class="seg-btn" data-mode="dir" aria-pressed="false">📦 Folder App (V2)</button>
+      <button type="button" class="seg-btn" data-mode="dir" aria-pressed="false">📦 Folder App</button>
       <button type="button" class="seg-btn" data-mode="html" aria-pressed="false">📄 HTML Inline</button>
-      <button type="button" class="seg-btn" data-mode="file" aria-pressed="false">📁 File HTML (V2)</button>
+      <button type="button" class="seg-btn" data-mode="file" aria-pressed="false">📁 File HTML Lokal</button>
     </div>
 
     <!-- Source Input -->
@@ -602,10 +602,10 @@
       <div class="err" id="err-width" role="alert"></div>
       <div class="err" id="err-height" role="alert"></div>
       <div class="preset-chips">
-        <button type="button" class="chip" data-w="800" data-h="600">800x600</button>
-        <button type="button" class="chip" data-w="1024" data-h="768">1024x768</button>
-        <button type="button" class="chip" data-w="1280" data-h="720">1280x720 (HD)</button>
-        <button type="button" class="chip" data-w="1440" data-h="900">1440x900</button>
+        <button type="button" class="chip" data-w="800" data-h="600" aria-pressed="false">800x600</button>
+        <button type="button" class="chip" data-w="1024" data-h="768" aria-pressed="false">1024x768</button>
+        <button type="button" class="chip" data-w="1280" data-h="720" aria-pressed="false">1280x720 (HD)</button>
+        <button type="button" class="chip" data-w="1440" data-h="900" aria-pressed="false">1440x900</button>
       </div>
     </div>
 
@@ -647,12 +647,12 @@
       </div>
 
       <!-- Server Mode Checkbox (Secure Context / In-Memory Local Server) -->
-      <div class="field" style="margin-top: 14px; margin-bottom: 4px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+      <div class="field" id="field-server-mode" style="margin-top: 14px; margin-bottom: 4px; padding-top: 12px; border-top: 1px solid var(--card-border);">
         <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-weight: 600;">
           <input type="checkbox" id="server-mode" style="margin-top: 3px; cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent);">
           <div>
             <span>Gunakan In-Memory Local Web Server (127.0.0.1)</span>
-            <div class="hint" style="margin-top: 2px;">
+            <div class="hint" id="server-mode-hint" style="margin-top: 2px;">
               Sajikan file langsung dari RAM menggunakan port loopback lokal untuk mengaktifkan <strong>Secure Context</strong> (<code>window.isSecureContext === true</code>, <code>crypto.subtle</code>, WebCrypto, dan Clipboard API). Tetap tanpa menulis file sementara ke hard disk.
             </div>
           </div>
@@ -674,6 +674,7 @@
   <footer class="foot">
     <span>Hasil build tersimpan di folder yang sama dengan <code>respect.exe</code>.</span>
     <span>Tekan <kbd>Ctrl</kbd> + <kbd>Enter</kbd> untuk mulai build.</span>
+    <button type="button" id="btn-reset-form" style="background:none; border:none; color:var(--muted); text-decoration:underline; cursor:pointer; font-size:11.5px; margin-left:auto; padding:0;">Reset Form</button>
   </footer>
 </div>
 
@@ -812,6 +813,18 @@
       }
     }
 
+    var srvEl = document.getElementById('server-mode');
+    var srvHint = document.getElementById('server-mode-hint');
+    if (srvEl) {
+      if (mode === 'url') {
+        srvEl.disabled = true;
+        if (srvHint) srvHint.textContent = 'Server lokal hanya berlaku untuk konten lokal (Folder App, File HTML Lokal, HTML Inline). Dinonaktifkan untuk Target URL.';
+      } else {
+        srvEl.disabled = false;
+        if (srvHint) srvHint.innerHTML = 'Sajikan file langsung dari RAM menggunakan port loopback lokal untuk mengaktifkan <strong>Secure Context</strong> (<code>window.isSecureContext === true</code>, <code>crypto.subtle</code>, WebCrypto, dan Clipboard API). Tetap tanpa menulis file sementara ke hard disk.';
+      }
+    }
+
     setError('source', '');
     saveState();
   }
@@ -820,7 +833,9 @@
     var w = val('width').trim();
     var h = val('height').trim();
     each('.chip', function (chip) {
-      chip.classList.toggle('active', chip.dataset.w === w && chip.dataset.h === h);
+      var active = chip.dataset.w === w && chip.dataset.h === h;
+      chip.classList.toggle('active', active);
+      chip.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
 
@@ -910,6 +925,56 @@
     fallbackCopy(text, done);
   }
 
+  var MB_QUERY_ID = 1;
+  var BUILD_TIMEOUT_MS = 300000;  // 5 menit
+  var PICKER_TIMEOUT_MS = 300000; // 5 menit batas toleransi dialog native
+
+  function withTimeout(promise, ms, timeoutMsg) {
+    var timer;
+    var timeout = new Promise(function (_, reject) {
+      timer = setTimeout(function () {
+        reject(new Error(timeoutMsg || 'Waktu tunggu habis (timeout).'));
+      }, ms);
+    });
+    return Promise.race([promise, timeout]).then(
+      function (v) { clearTimeout(timer); return v; },
+      function (e) { clearTimeout(timer); throw e; }
+    );
+  }
+
+  function callNative(cmd, payloadObj, timeoutMs, timeoutMsg) {
+    var isQuery = typeof window.mbQuery === 'function';
+    var isIpc = typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function';
+
+    if (!isQuery && !isIpc) {
+      return Promise.reject(new Error('IPC Miniblink tidak tersedia di context ini.'));
+    }
+
+    var prom;
+    if (isQuery) {
+      // Miniblink 132: mbQuery menerima JSON string
+      var payloadStr = typeof payloadObj === 'string' ? payloadObj : JSON.stringify(payloadObj || {});
+      prom = new Promise(function (resolve) {
+        try {
+          window.mbQuery(MB_QUERY_ID, payloadStr, function (customMsg, response) {
+            resolve(response || customMsg);
+          });
+        } catch (err) {
+          resolve(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }));
+        }
+      });
+    } else {
+      // Miniblink 49: ipc.invoke menerima channel name dan payload string
+      var payloadStr = typeof payloadObj === 'string' ? payloadObj : JSON.stringify(payloadObj || '');
+      prom = window.ipc.invoke(cmd, payloadStr);
+    }
+
+    if (timeoutMs && timeoutMs > 0) {
+      return withTimeout(prom, timeoutMs, timeoutMsg);
+    }
+    return prom;
+  }
+
   function resolvePickerResult(resStr) {
     var res = parseResult(resStr);
     if (!res || res.ok === false) {
@@ -920,23 +985,8 @@
 
   function invokePicker(cmd) {
     if (!cmd) cmd = 'pick-icon';
-    var payload = JSON.stringify({ cmd: cmd });
-
-    if (typeof window.mbQuery === 'function') {
-      // Miniblink 132: satu kanal query, dibedakan lewat field "cmd"
-      return new Promise(function (resolve) {
-        window.mbQuery(1, payload, function (customMsg, response) {
-          resolve(resolvePickerResult(response || customMsg));
-        });
-      });
-    }
-
-    if (typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function') {
-      // Miniblink 49: kanal IPC khusus
-      return window.ipc.invoke(cmd, '').then(resolvePickerResult);
-    }
-
-    return Promise.reject(new Error('IPC Miniblink tidak tersedia di context ini.'));
+    return callNative(cmd, { cmd: cmd }, PICKER_TIMEOUT_MS, 'Dialog pemilihan file tidak merespons.')
+      .then(resolvePickerResult);
   }
 
   function pickIcon() {
@@ -994,6 +1044,7 @@
 
   function collectConfig() {
     var srvEl = document.getElementById('server-mode');
+    var isServer = (srvEl && !srvEl.disabled) ? srvEl.checked : false;
     return {
       mode: currentMode,
       source: val('source').trim(),
@@ -1005,7 +1056,7 @@
       app_version: val('app-version').trim() || '1.0.0',
       company: val('company').trim(),
       copyright: val('copyright').trim(),
-      server_mode: srvEl ? srvEl.checked : false
+      server_mode: isServer
     };
   }
 
@@ -1020,8 +1071,11 @@
     clearErrors();
 
     var rawOut = val('outname').trim();
+    var RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
     if (!rawOut) {
       fail('outname', 'Nama output file wajib diisi.');
+    } else if (RESERVED.test(rawOut.replace(/\.exe$/i, ''))) {
+      fail('outname', 'Nama file adalah reserved device name Windows (CON, PRN, AUX, NUL, COM1-9, LPT1-9).');
     } else if (/[<>:"/\\|?*]/.test(rawOut.replace(/\.exe$/i, ''))) {
       fail('outname', 'Nama file tidak boleh mengandung karakter < > : " / \\ | ? *');
     } else if (!/\.exe$/i.test(rawOut)) {
@@ -1060,27 +1114,7 @@
   }
 
   function invokeBuild(cfg) {
-    var payload = JSON.stringify(cfg);
-
-    if (typeof window.mbQuery === 'function') {
-      // Komunikasi native Miniblink 132 (menerima customMsg dan response string)
-      return new Promise(function (resolve) {
-        try {
-          window.mbQuery(1, payload, function (customMsg, response) {
-            resolve(response || customMsg);
-          });
-        } catch (err) {
-          resolve(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }));
-        }
-      });
-    }
-
-    if (typeof window.ipc !== 'undefined' && window.ipc && typeof window.ipc.invoke === 'function') {
-      // Komunikasi Miniblink 49
-      return window.ipc.invoke('build-app', payload);
-    }
-
-    return Promise.reject(new Error('IPC Miniblink tidak tersedia di context ini.'));
+    return callNative('build-app', cfg, BUILD_TIMEOUT_MS, 'Waktu proses build habis (melebihi 5 menit).');
   }
 
   function parseResult(resStr) {
@@ -1210,6 +1244,27 @@
     }
   }
 
+  function resetForm() {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch (e) { /* ignore */ }
+    document.getElementById('outname').value = 'demo.exe';
+    document.getElementById('title').value = 'My App';
+    document.getElementById('source').value = '';
+    document.getElementById('width').value = '1024';
+    document.getElementById('height').value = '768';
+    document.getElementById('icon').value = '';
+    document.getElementById('app-version').value = '1.0.0';
+    document.getElementById('company').value = '';
+    document.getElementById('copyright').value = '';
+    var srvEl = document.getElementById('server-mode');
+    if (srvEl) srvEl.checked = false;
+    clearErrors();
+    setMode('url');
+    updateDimsChips();
+    toggleAdvanced(false);
+  }
+
   function init() {
     PERSIST_FIELDS.concat(['source']).forEach(bindField);
 
@@ -1234,6 +1289,15 @@
     var srcBtn = document.getElementById('btn-source-pick');
     if (srcBtn) srcBtn.addEventListener('click', pickSource);
     document.getElementById('btn-build').addEventListener('click', buildApp);
+
+    var resetBtn = document.getElementById('btn-reset-form');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        if (window.confirm('Reset seluruh isian form kembali ke setelan awal?')) {
+          resetForm();
+        }
+      });
+    }
 
     document.addEventListener('keydown', function (ev) {
       if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
@@ -1266,6 +1330,9 @@
             setError('source', '');
           }
           saveState();
+        } else {
+          // Engine browser murni (Chromium / Miniblink) memproteksi path fisik lokal demi keamanan sandbox
+          setError('source', 'Drag & drop langsung dari Explorer tidak menyediakan path file di engine browser ini. Silakan gunakan tombol "📁 Pilih..." di samping.', 'warn');
         }
       }
     });
