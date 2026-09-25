@@ -31,6 +31,8 @@ func TestParseCommand(t *testing.T) {
 		want  string
 	}{
 		{"perintah pick-icon", `{"cmd":"pick-icon"}`, cmdPickIcon},
+		{"perintah pick-folder", `{"cmd":"pick-folder"}`, cmdPickFolder},
+		{"perintah pick-html", `{"cmd":"pick-html"}`, cmdPickHTML},
 		{"perintah dengan spasi", `{"cmd":" pick-icon "}`, cmdPickIcon},
 		{"payload build lama tanpa cmd", `{"mode":"url","source":"https://example.com","out_name":"demo.exe"}`, ""},
 		{"payload kosong", ``, ""},
@@ -41,6 +43,34 @@ func TestParseCommand(t *testing.T) {
 		if got := parseCommand(tc.input); got != tc.want {
 			t.Errorf("%s: parseCommand(%q) = %q, mau %q", tc.name, tc.input, got, tc.want)
 		}
+	}
+}
+
+func TestPickFolderJSONSukses(t *testing.T) {
+	original := pickFolderFn
+	defer func() { pickFolderFn = original }()
+
+	pickFolderFn = func(owner uintptr, title string) (string, error) {
+		return `C:\project\dist`, nil
+	}
+
+	res := decodePickIconResponse(t, pickFolderJSON(123))
+	if !res.OK || res.Path != `C:\project\dist` {
+		t.Errorf("pickFolderJSON gagal: %+v", res)
+	}
+}
+
+func TestPickHTMLJSONSukses(t *testing.T) {
+	original := pickHTMLFn
+	defer func() { pickHTMLFn = original }()
+
+	pickHTMLFn = func(owner uintptr) (string, error) {
+		return `C:\project\index.html`, nil
+	}
+
+	res := decodePickIconResponse(t, pickHTMLJSON(123))
+	if !res.OK || res.Path != `C:\project\index.html` {
+		t.Errorf("pickHTMLJSON gagal: %+v", res)
 	}
 }
 

@@ -2,8 +2,10 @@
 *.exe
 *.exe~
 *.dll
+*.dat
 !assets/rcedit.exe
 !assets/blink.dll
+!assets/*.zst
 test-v132/
 dist/
 release/
@@ -11,4 +13,5 @@ release/
 
 # Local research and tools
 _research/
-.kilo/
+.kilo/
+scratch/

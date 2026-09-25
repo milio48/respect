@@ -1,0 +1,12 @@
+{
+  "name": "respect-stress-testing",
+  "probe": true,
+  "value": 4242,
+  "message": "Relative fetch routing OK",
+  "files": [
+    "index.html",
+    "worker.js",
+    "js/app.js",
+    "js/interaction.js"
+  ]
+}

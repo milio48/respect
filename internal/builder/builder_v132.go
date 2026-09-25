@@ -5,11 +5,10 @@ package builder
 import (
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"runtime"
 
 	"respect-app/assets"
 	"respect-app/internal/mb132"
@@ -22,6 +21,7 @@ var indexHTML string
 
 // Run menjalankan antarmuka grafis (GUI) builder respect.exe menggunakan Chromium 132.
 func Run() {
+	runtime.LockOSThread()
 	title := fmt.Sprintf("%s — Standalone EXE Builder", version.BinaryName)
 	view, err := mb132.CreateWebWindow(title, 720, 680)
 	if err != nil {
@@ -35,8 +35,13 @@ func Run() {
 
 	// Daftarkan handler query JavaScript (window.mbQuery)
 	view.HandleQuery(func(cfgJSON string) string {
-		if parseCommand(cfgJSON) == cmdPickIcon {
+		switch parseCommand(cfgJSON) {
+		case cmdPickIcon:
 			return pickIconJSON(view.HostHWND())
+		case cmdPickFolder:
+			return pickFolderJSON(view.HostHWND())
+		case cmdPickHTML:
+			return pickHTMLJSON(view.HostHWND())
 		}
 
 		var cfg payload.Config
@@ -44,17 +49,7 @@ func Run() {
 			return errJSON(err)
 		}
 
-		if strings.TrimSpace(cfg.Source) == "" {
-			return errJSON(errors.New("sumber konten (source) wajib diisi"))
-		}
-		if strings.TrimSpace(cfg.OutName) == "" {
-			cfg.OutName = "demo.exe"
-		}
-		if !strings.HasSuffix(strings.ToLower(cfg.OutName), ".exe") {
-			cfg.OutName += ".exe"
-		}
-
-		if err := payload.BuildSelf(cfg); err != nil {
+		if err := buildAppFromConfig(cfg); err != nil {
 			return errJSON(err)
 		}
 

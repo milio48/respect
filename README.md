@@ -4,209 +4,83 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://github.com/milio48/respect)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev)
+[![Documentation](https://img.shields.io/badge/Docs-GitHub%20Pages-brightgreen)](docs/index.md)
 
 <p align="center">
   <img src="assets/workflow-thumbnail.jpg" alt="Respect Desktop Workflow" width="100%">
 </p>
 
-**Respect Desktop** adalah aplikasi Windows praktis untuk mengubah situs website, web app, atau file HTML menjadi aplikasi desktop (`.exe`) mandiri siap pakai — **hanya dengan beberapa klik, tanpa perlu install server, Node.js, atau coding tambahan!**
+**Respect Desktop** adalah utilitas Windows praktis untuk mengubah situs website, folder aplikasi web (React, Vue, Svelte, Vite), atau file HTML menjadi aplikasi desktop (`.exe`) mandiri siap pakai — **hanya 1 file `.exe`, tanpa perlu instalasi server, Node.js, atau coding tambahan!**
 
 ---
 
-## ⚡ Unduh Langsung (Siap Pakai, Cukup 1 File .EXE)
+## ⚡ Unduh (Siap Pakai, Cukup 1 File .EXE)
 
-Langsung unduh edisi yang sesuai kebutuhan Anda tanpa perlu membaca dokumentasi teknis:
+Langsung unduh edisi executable yang sesuai dengan kebutuhan Anda:
 
 | <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-full.png" width="80" height="80" alt="Respect Modern"><br><b>Respect Modern (`respect.exe`)</b></a> | <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-lite.png" width="80" height="80" alt="Respect Lite"><br><b>Respect Lite (`respect-lite.exe`)</b></a> |
 | :---: | :---: |
-| 🌟 **Pilihan Terbaik & Paling Direkomendasikan**<br>Mendukung web modern, Tailwind CSS, animasi halus, dan visual kaya *(Chromium 132)*. | 🪶 **Paling Ringan & Hemat Memori RAM**<br>Sangat enteng, minim RAM, cocok untuk aplikasi kasir atau komputer lawas *(Miniblink 49)*. |
+| 🌟 **Pilihan Terbaik & Paling Direkomendasikan**<br>Mendukung web modern, Tailwind CSS, animasi halus, dan visual kaya *(Chromium 132)*. | 🪶 **Paling Ringan & Hemat Memori RAM**<br>Sangat enteng (~25–40 MB RAM), cocok untuk aplikasi kasir atau PC lawas *(Miniblink 49)*. |
 | [⬇️ **Unduh Edisi Modern (64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows 7, 8, 10, 11)* | [⬇️ **Unduh Edisi Lite (32/64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows XP s.d. 11)* |
 
-> 💡 **Cara Pakai:** Cukup unduh salah satu file `.exe` di atas, klik ganda untuk membuka builder, masukkan link web Anda, dan klik **Build**. Selesai!
+> 🎮 **Ingin mencoba performa & kapabilitas engine langsung?**
+> Unduh file demo siap jalan di halaman Releases: [**`demo-stress-testing.exe`** (Modern)](https://github.com/milio48/respect/releases) atau [**`demo-stress-testing_lite.exe`** (Lite)](https://github.com/milio48/respect/releases) untuk menguji 120+ standar web, audio oscilloscope, kamera, dan simulasi fisika 20.000 partikel 60 FPS.
 
 ---
 
-## 🎯 Perbandingan Detail Edisi
+## 🚀 Contoh Penggunaan
 
-Respect siap pakai langsung setelah diunduh (tidak perlu proses install):
+### 1. Antarmuka Visual (Desktop GUI Builder)
 
-| Fitur | 🌟 **Respect Modern (`respect.exe`)** | 🪶 **Respect Lite (`respect-lite.exe`)** |
-|---|---|---|
-| **Kelebihan** | Mendukung web modern, tampilan mulus & animasi kaya | Ringan, hemat memori & kompatibilitas sistem lawas |
-| **Bentuk Distribusi** | **1 File `.exe` Mandiri** (Single Binary) | **1 File `.exe` Mandiri** (Single Binary) |
-| **Ukuran File Biner** | **~72 MB** *(seluruh engine terintegrasi)* | **~57 MB** *(seluruh engine terintegrasi)* |
-| **Engine Browser** | Chromium 132 (Lebih baru & Cepat) | Miniblink 49 (Ringan & Hemat RAM) |
-| **Dukungan Windows** | Windows 7, 8, 10, 11 (64-bit) | Windows 7, 8, 10, 11 (64-bit)* / XP s.d. 11 (32-bit)* |
-| **Paling Cocok Untuk** | Dashboard modern, aplikasi SaaS, grafik interaktif | Aplikasi kasir (POS), utilitas kantor, komputer lawas |
+1. Unduh `respect.exe` atau `respect-lite.exe`, lalu **klik ganda (double-click)** untuk membukanya.
+2. Pilih mode sumber:
+   - **URL Website**: Masukkan URL (contoh: `https://aplikasisaya.com`).
+   - **Folder App V2 (In-Memory)**: Pilih folder hasil build aplikasi web frontend (contoh: folder `dist/` atau `build/` dari Vite/React).
+   - **File HTML Lokal**: Pilih file `.html` dari komputer Anda via tombol **Pilih Folder/File…**.
+   - **HTML Inline**: Tempel langsung kode HTML/CSS/JS.
+3. Beri nama aplikasi (contoh: `AplikasiSaya.exe`) dan tentukan icon `.ico` (opsional).
+4. Klik **Build Standalone EXE**. File `.exe` baru langsung jadi dan siap didistribusikan!
 
-> **💡 Panduan Cepat:**
-> - Jika ingin tampilan web masa kini terbaik: **Gunakan `respect.exe`**.
-> - Jika ingin binary yang lebih hemat memori atau untuk komputer lama: **Gunakan `respect-lite.exe`**.
-> - Kedua edisi merupakan **single binary mandiri** (cukup 1 file `.exe`, langsung jalan tanpa perlu instalasi atau file tambahan).
+### 2. Baris Perintah (CLI untuk Automasi)
 
-<details>
-<summary>📊 <b>Lihat Hasil Uji Kapabilitas & Komparasi Fitur (Hasil Riset 88 Standar Web)</b></summary>
-
-Berdasarkan pengujian komparasi terhadap 88 fitur standar web modern (JavaScript, CSS, HTML5, dan PWA):
-
-| Kategori Pengujian | 🪶 Respect Lite (v49) | 🌟 Respect Modern (v132) | Catatan Penting |
-|---|---|---|---|
-| **JavaScript** | **19/24** (79%) | **24/24** (100%) | Modern lulus penuh standar ES2020+ (Optional Chaining `?.`, Nullish Coalescing `??`, ES Modules, WeakRef). |
-| **CSS Modern** | **6/22** (27%) | **22/22** (100%) | **Perbedaan Terbesar:** Lite tidak mendukung CSS Grid, CSS Variables (`--var`), `backdrop-filter`, `gap`, `aspect-ratio`, `:has()`. Modern mendukung penuh framework seperti Tailwind CSS. |
-| **HTML5 Core** | **18/32** (56%) | **21/32** (66%) | Keduanya mendukung Canvas, Web Audio, SVG, Web Workers, dan LocalStorage. |
-| **PWA & OS APIs** | **1/10** (10%) | **3/10** (30%) | Keterbatasan arsitektur embedded webview desktop: API tingkat OS seperti Cache API, Background Sync, dan Push Notifications tidak diekspos secara native. |
-| **TOTAL SKOR** | **44 / 88 (50.0%)** | **70 / 88 (79.5%)** | **Modern unggul mutlak pada rendering tampilan visual & kompatibilitas library web.** |
-
-> [!TIP]
-> **Rekomendasi Pemilihan:**
-> - **Pilih `respect.exe` (v132):** Wajib jika situs/aplikasi web Anda memakai framework frontend modern (React, Vue, Tailwind CSS, Svelte), grafik interaktif, atau animasi CSS modern.
-> - **Pilih `respect-lite.exe` (v49):** Sangat ideal untuk web app sederhana, aplikasi kasir (POS), utilitas internal, atau komputer dengan RAM terbatas dan Windows lawas (Windows 7/8).
-
-</details>
-
----
-
-## 🚀 Cara Menggunakan (Sangat Mudah!)
-
-1. **Unduh file executable** (`respect.exe` atau `respect-lite.exe`) dari halaman [GitHub Releases](https://github.com/milio48/respect/releases).
-2. **Klik ganda file `.exe`** yang telah diunduh untuk membuka builder.
-3. **Isi formulir pembuatan**:
-   - Pilih mode sumber: **URL Website**, **HTML Inline** (tempel kode HTML langsung), atau **File HTML Lokal** (tuliskan path file). Contoh URL: `https://aplikasisaya.com`.
-   - Beri nama aplikasi Anda (contoh: `AplikasiSaya.exe`).
-   - *(Opsional)* Isi path file icon `.ico` (misalnya `C:\icons\app.ico`), atau klik tombol **Pilih…** untuk memilih file lewat dialog Windows.
-4. Klik tombol hijau **Build Standalone EXE**.
-5. **Selesai!** File `.exe` buatan Anda langsung jadi di folder yang sama dan siap digunakan atau dibagikan ke siapa saja.
-
----
-
-## 💡 Fitur Lanjutan (Opsional)
-
-<details>
-<summary>💻 <b>Klik di sini jika ingin menggunakan Baris Perintah (CLI) untuk Otomasi</b></summary>
-
-Bagi Anda yang ingin membuat file `.exe` secara otomatis melalui script Command Prompt atau PowerShell:
+Jalankan perintah langsung dari Command Prompt atau PowerShell:
 
 ```powershell
-# Cek versi aplikasi
-.\respect.exe --version
+# 1. Buat aplikasi dari URL website
+.\respect.exe --build --source "https://aplikasisaya.com" --out "AplikasiSaya.exe" --title "Aplikasi Saya"
 
-# Buat aplikasi langsung dari URL website
-.\respect.exe --build --source "https://google.com" --out "GoogleDesktop.exe" --title "Google"
+# 2. Buat aplikasi dari folder web frontend (In-Memory Virtual Host V2)
+.\respect.exe --build --source "C:\proyek\my-vite-app\dist" --mode folder --out "Dashboard.exe"
 
-# Buat aplikasi dari file HTML lokal dengan ukuran jendela tertentu
-.\respect.exe --build --source "C:\proyek\index.html" --mode file --width 1280 --height 800 --out "Dashboard.exe"
-
-# Buat aplikasi lengkap dengan icon, versi, dan metadata pengembang/perusahaan
-.\respect.exe --build --source "https://my-app.com" --icon "icon.ico" --out "MyApp.exe" `
-  --app-version "1.2.0" --company "PT Solusi Digital" --copyright "Copyright © 2026"
-```
-
-### Parameter CLI
-- `--build` : Mengaktifkan pembuatan file executable dari terminal
-- `--source` : URL website, kode HTML inline, atau path file HTML
-- `--mode` : Mode sumber konten — `url` (default), `html` (kode HTML inline), atau `file` (path file HTML lokal)
-- `--out` : Nama file output (default: `demo.exe`)
-- `--title` : Judul jendela aplikasi
-- `--width` / `--height` : Ukuran jendela awal aplikasi
-- `--icon` : Path file icon `.ico` (opsional)
-- `--app-version` : Nomor versi aplikasi (default: `1.0.0`)
-- `--company` : Nama perusahaan atau pengembang (opsional)
-- `--copyright` : Teks hak cipta / copyright (opsional)
-- `--version` atau `-v` : Cek versi engine dan edisi yang aktif
-
-</details>
-
----
-
-## 🛠️ Area Pengembang (Developer & Source Code)
-
-<details>
-<summary>🔧 <b>Klik di sini untuk Panduan Kompilasi dari Source Code & Kontribusi</b></summary>
-
-### Prasyarat
-- Sistem Operasi: **Windows 10/11 (64-bit)**
-- **Go 1.25+**
-- PowerShell 5.1+
-- Git: `git clone https://github.com/milio48/respect.git`
-
----
-
-### Cara Kompilasi (Build) Lokal
-
-```powershell
-# Clone repository
-git clone https://github.com/milio48/respect.git
-cd respect
-```
-
-> 💡 **Catatan Development:** Selama fase pengembangan (development) v132, engine Miniblink 132 dijalankan dalam mode slim dengan memuat `blink.dll` di samping binary untuk mempercepat proses kompilasi dan iterasi lokal. Rilis resmi memakai tag `embed132` (`build.ps1 -Embed`) agar engine tertanam penuh dalam satu file `.exe` tanpa `blink.dll` terpisah.
-
-#### 1. Menggunakan Skrip PowerShell Otomatis
-```powershell
-# Bangun kedua edisi sekaligus ke folder dist/
-.\scripts\build.ps1 -Target all
-
-# Bangun hanya Respect Modern (respect.exe)
-.\scripts\build.ps1 -Target modern
-
-# Bangun hanya Respect Lite (respect-lite.exe)
-.\scripts\build.ps1 -Target lite
-
-# Bangun Modern sebagai single-file mandiri (engine Chromium tertanam, siap distribusi)
-.\scripts\build.ps1 -Target modern -Embed
-
-# Tentukan nomor versi yang disuntikkan ke internal/version.AppVersion
-.\scripts\build.ps1 -Target all -Version 1.2.0
-```
-
-> 💡 **Catatan Build Lokal:** secara default skrip membangun Modern dalam **mode slim** — `blink.dll` disalin ke samping binary dan hasilnya **bukan** single-file. Gunakan `-Embed` (tag `embed132`) untuk menghasilkan `.exe` mandiri seperti pada rilis. Hasil build lokal ada di `dist/respect/respect.exe` dan `dist/respect-lite/respect-lite.exe`.
-
-#### 2. Menggunakan Perintah Go Manual
-```powershell
-# Respect Modern (Chromium 132) — single-file mandiri (engine tertanam, sama seperti rilis)
-go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui" -o respect.exe .
-
-# Respect Modern — mode slim (wajib menyertakan blink.dll di folder yang sama)
-go build -tags v132 -ldflags="-s -w -H windowsgui" -o respect.exe .
-
-# Respect Lite (Miniblink 49)
-go build -ldflags="-s -w -H windowsgui" -o respect-lite.exe .
-
-# Opsional: menyuntikkan nomor versi aplikasi
-go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui -X respect-app/internal/version.AppVersion=1.2.0" -o respect.exe .
+# 3. Buat aplikasi dari file HTML lokal dengan icon kustom & ukuran jendela
+.\respect.exe --build --source "C:\proyek\index.html" --mode file --icon "assets\icon.ico" --width 1280 --height 800 --out "POSApp.exe"
 ```
 
 ---
 
-### Struktur Repository
+## 📚 Dokumentasi Lengkap
 
-```
-respect/
-├── .github/workflows/   # CI/CD GitHub Actions untuk rilis Windows otomatis
-├── assets/              # Icon resmi (respect-full.ico & respect-lite.ico) serta rcedit.exe
-├── internal/
-│   ├── builder/         # UI Builder GUI (builder_v132.go & builder_v49.go)
-│   │   └── static/      # Frontend Builder (HTML/CSS/JS mandiri, dual-IPC)
-│   ├── icon/            # Injeksi icon aplikasi via Windows PE Resource
-│   ├── mb132/           # Wrapper Miniblink 132 pure Go (VEH crash handler & sandbox)
-│   ├── payload/         # Shared trailer engine format RESPECTv1 (100% kompatibel)
-│   ├── runtime/         # Runtime runner (runtime_v132.go & runtime_v49.go)
-│   └── version/         # Sentralisasi versioning (version_v132.go & version_v49.go)
-├── scripts/             # Skrip automasi build lokal (build.ps1)
-└── main.go              # Shared CLI parser & application entry point
-```
+Untuk panduan mendalam mengenai fitur teknis, parameter CLI lanjutan, arsitektur, dan cara kompilasi dari source code, silakan baca dokumentasi kami:
+
+- 📖 **[Pusat Dokumentasi Utama (`docs/index.md`)](docs/index.md)**
+- 📘 **[1. Panduan Penggunaan Lengkap](docs/1-panduan-penggunaan.md)** — GUI Builder, dialog native, drag & drop, serta daftar parameter CLI.
+- 📊 **[2. Perbandingan Edisi & Riset 88 Standar Web](docs/2-perbandingan-edisi.md)** — Komparasi detail Chromium 132 vs Miniblink 49.
+- 🔒 **[3. Arsitektur In-Memory Virtual Host & Enkripsi](docs/3-arsitektur-virtual-host.md)** — Runtime zero-disk, zero-socket port, dan enkripsi payload AES-256-GCM.
+- ⚙️ **[4. Lifecycle & Alur Eksekusi Internal](docs/4-lifecycle.md)** — Threading model, window hooks, Win32 message loop, dan self-replication.
+- 🛠️ **[5. Panduan Pengembang & Kompilasi](docs/5-panduan-pengembang.md)** — Prasyarat, skrip `build.ps1`, Go build tags, dan CI/CD GitHub Actions.
+- 🧭 **[6. Kompatibilitas Standar Web, Media & Batasan Engine](docs/6-kompatibilitas-dan-batasan-engine.md)** — Pemutaran media native (MP4/H.264), Secure Context, dan batas nyata engine.
+
 
 ---
 
-### Otomasi Rilis GitHub Actions
-Workflow rilis tersedia di `.github/workflows/release.yml`. Ketika tag versi dibuat (misal `git tag v1.0.0 && git push origin v1.0.0`), GitHub Actions akan:
-1. Mengompilasi `respect.exe`, `respect-lite.exe`, dan `respect-lite-x86.exe` (32-bit) di mesin Windows runner.
-2. Menyuntikkan icon aplikasi resmi Respect serta metadata versi yang diambil dari tag rilis.
-3. Menerbitkan aset `.exe` secara langsung ke GitHub Releases (tanpa arsip `.zip`).
+## 🔗 Kredit & Tautan Komunitas
 
-</details>
+Respect Desktop dapat terwujud berkat karya luar biasa dari komunitas open source:
+- **Core Engine C++**: [Miniblink 49](https://github.com/weolar/miniblink49/) dikembangkan oleh **Weolar**.
+- **Go Binding Miniblink**: [epkgs/blink](https://deepwiki.com/epkgs/blink).
 
 ---
 
 ## 📄 Lisensi
-Didistribusikan di bawah lisensi MIT. Lihat file [LICENSE](LICENSE) untuk informasi lebih lanjut.
+
+Didistribusikan di bawah lisensi [MIT](LICENSE). Hak Cipta © 2026 Respect Desktop Contributors.

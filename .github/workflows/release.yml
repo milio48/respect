@@ -46,70 +46,11 @@ jobs:
           Write-Host "Version: $ver"
           "version=$ver" >> $env:GITHUB_OUTPUT
 
-      - name: Build Respect Lite (v49) & Respect Modern (v132)
+      - name: Build Respect Desktop Binaries
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
           $ver = "${{ steps.get_version.outputs.version }}"
-          # Versi PE wajib numerik (1.0.0, 1.0.0.0, dst); suffix seperti -beta diabaikan
-          $numeric = @($ver -split '[^0-9]' | Where-Object { $_ -ne '' })
-          $fileVer = (@($numeric + @('0','0','0','0'))[0..3]) -join '.'
-          $prodVer = (@($numeric + @('0','0','0'))[0..2]) -join '.'
-          $ldVersion = "-X respect-app/internal/version.AppVersion=$ver"
-
-          # 1. Bangun Respect Lite (v49 standalone 64-bit)
-          $liteDir = "dist/respect-lite"
-          New-Item -ItemType Directory -Path $liteDir -Force | Out-Null
-          go build -ldflags="-s -w -H windowsgui $ldVersion" -o "$liteDir/respect-lite.exe" .
-          if ($LASTEXITCODE -ne 0) { throw "go build gagal: respect-lite.exe (exit $LASTEXITCODE)" }
-          if ((Test-Path "assets/rcedit.exe") -and (Test-Path "assets/respect-lite.ico")) {
-            .\assets\rcedit.exe "$liteDir/respect-lite.exe" `
-              --set-icon "assets/respect-lite.ico" `
-              --set-product-version "$prodVer" `
-              --set-file-version "$fileVer" `
-              --set-version-string "ProductName" "Respect Desktop Lite" `
-              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 64-bit)" `
-              --set-version-string "CompanyName" "milio48" `
-              --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
-              --set-version-string "OriginalFilename" "respect-lite.exe"
-            if ($LASTEXITCODE -ne 0) { throw "rcedit gagal: respect-lite.exe (exit $LASTEXITCODE)" }
-          }
-
-          # 1b. Bangun Respect Lite x86 (v49 standalone 32-bit untuk Windows lawas)
-          $env:GOARCH = "386"
-          go build -ldflags="-s -w -H windowsgui $ldVersion" -o "$liteDir/respect-lite-x86.exe" .
-          if ($LASTEXITCODE -ne 0) { throw "go build gagal: respect-lite-x86.exe (exit $LASTEXITCODE)" }
-          if ((Test-Path "assets/rcedit.exe") -and (Test-Path "assets/respect-lite.ico")) {
-            .\assets\rcedit.exe "$liteDir/respect-lite-x86.exe" `
-              --set-icon "assets/respect-lite.ico" `
-              --set-product-version "$prodVer" `
-              --set-file-version "$fileVer" `
-              --set-version-string "ProductName" "Respect Desktop Lite (32-bit)" `
-              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Lite Engine 32-bit)" `
-              --set-version-string "CompanyName" "milio48" `
-              --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
-              --set-version-string "OriginalFilename" "respect-lite-x86.exe"
-            if ($LASTEXITCODE -ne 0) { throw "rcedit gagal: respect-lite-x86.exe (exit $LASTEXITCODE)" }
-          }
-          $env:GOARCH = "amd64"
-
-          # 2. Bangun Respect Modern (v132 Standalone Single File - Engine Tertanam)
-          $modernDir = "dist/respect"
-          New-Item -ItemType Directory -Path $modernDir -Force | Out-Null
-          go build -tags "v132,embed132" -ldflags="-s -w -H windowsgui $ldVersion" -o "$modernDir/respect.exe" .
-          if ($LASTEXITCODE -ne 0) { throw "go build gagal: respect.exe (exit $LASTEXITCODE)" }
-          if ((Test-Path "assets/rcedit.exe") -and (Test-Path "assets/respect-full.ico")) {
-            .\assets\rcedit.exe "$modernDir/respect.exe" `
-              --set-icon "assets/respect-full.ico" `
-              --set-product-version "$prodVer" `
-              --set-file-version "$fileVer" `
-              --set-version-string "ProductName" "Respect Desktop" `
-              --set-version-string "FileDescription" "Respect Desktop Builder & Runner (Modern Engine Standalone)" `
-              --set-version-string "CompanyName" "milio48" `
-              --set-version-string "LegalCopyright" "Copyright (c) 2026 milio48" `
-              --set-version-string "OriginalFilename" "respect.exe"
-            if ($LASTEXITCODE -ne 0) { throw "rcedit gagal: respect.exe (exit $LASTEXITCODE)" }
-          }
+          .\scripts\build.ps1 -Target all -Embed -Version "$ver"
 
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
@@ -124,3 +65,5 @@ jobs:
             dist/respect/respect.exe
             dist/respect-lite/respect-lite.exe
             dist/respect-lite/respect-lite-x86.exe
+            dist/demo-stress-testing.exe
+            dist/demo-stress-testing_lite.exe

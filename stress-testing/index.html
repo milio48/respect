@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Respect Browser Stress Testing & Capability Suite</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- =======================================================================
+       HUD HEADER & TELEMETRY BAR
+       ======================================================================= -->
+  <header class="hud-header">
+    <div class="hud-brand">
+      <div class="hud-logo">⚡</div>
+      <div class="hud-title">
+        <h1>Respect Browser Diagnostic Lab <span class="badge" id="hudEngineBadge">Detecting Engine...</span></h1>
+      </div>
+    </div>
+
+    <div class="hud-telemetry">
+      <div class="telemetry-item">
+        <span class="telemetry-label">Platform OS</span>
+        <span class="telemetry-val" id="hudPlatform">Detecting...</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Hardware CPU</span>
+        <span class="telemetry-val" id="hudCores">-- Cores</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">RAM Device</span>
+        <span class="telemetry-val" id="hudRam">-- GB</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Display</span>
+        <span class="telemetry-val" id="hudResolution">--</span>
+      </div>
+    </div>
+
+    <div class="hud-actions">
+      <button class="btn btn-sm btn-primary" onclick="openReportModal('json')">💾 Laporan JSON</button>
+      <button class="btn btn-sm" onclick="openReportModal('markdown')">📋 Ringkasan MD</button>
+      <button class="btn btn-sm" onclick="openReportModal('text')">🖥️ Log Mentah</button>
+    </div>
+  </header>
+
+  <!-- =======================================================================
+       NAVIGATION TABS
+       ======================================================================= -->
+  <nav class="nav-tabs">
+    <button class="tab-btn active" data-tab="tab-dashboard">
+      <span>📊 Dashboard & Panduan</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-apidump">
+      <span>🧬 Dump Window JS APIs</span>
+      <span class="tab-badge" id="totalApisBadge">1000+</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-fingerprint">
+      <span>🔍 Fingerprint & Hardware</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-capability">
+      <span>🎯 170+ Capability Matrix</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-medialab">
+      <span>🎬 Camera, Mic & Media</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-stress">
+      <span>⚡ Stress Benchmarks</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-runner">
+      <span>🧪 Uji Interaktif & Otomasi</span>
+      <span class="tab-badge" id="runnerBadge">Quick</span>
+    </button>
+  </nav>
+
+  <!-- =======================================================================
+       MAIN CONTAINER & TAB PANES
+       ======================================================================= -->
+  <main class="test-container">
+
+    <!-- 1. DASHBOARD & QUICK SUMMARY TAB -->
+    <div id="tab-dashboard" class="tab-pane active">
+
+      <!-- PANDUAN PENGUJIAN & STATUS TRIGGER -->
+      <div class="guide-banner">
+        <h4>📖 Panduan Evaluasi & Status Pengujian Engine</h4>
+        <p style="margin-bottom: 8px; color: #cbd5e1;">
+          Sistem pengujian Respect Browser terbagi menjadi 2 jenis pengujian:
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+          <span class="badge-auto">⚡ OTOMATIS: 170+ Web Standards Matrix</span>
+          <span class="badge-auto">⚡ OTOMATIS: Unmasked GPU & Hardware Probe</span>
+          <span class="badge-auto">⚡ OTOMATIS: Dump 1000+ Window & Prototype APIs</span>
+          <span class="badge-auto">⚡ OTOMATIS: Canvas & Audio Fingerprint Hashes</span>
+          <span class="badge-auto">⚡ OTOMATIS: 50+ Windows Installed Fonts</span>
+          <span class="badge-interactive">👆 KLIK USER: Buka Kamera & Snapshot Filter</span>
+          <span class="badge-interactive">👆 KLIK USER: Buka Mic & Oscilloscope FFT</span>
+          <span class="badge-interactive">👆 KLIK USER: Bunyikan Web Audio Synthesizer</span>
+          <span class="badge-interactive">👆 KLIK USER: DOM Thrashing (5,000 Nodes)</span>
+          <span class="badge-interactive">👆 KLIK USER: Alokasi 200 MB RAM Buffer</span>
+          <span class="badge-interactive">👆 KLIK USER: Background Web Worker Benchmark</span>
+          <span class="badge-interactive">👆 KLIK USER: Fetch, Routing & JS Bridge (tab Uji Interaktif)</span>
+          <span class="badge-interactive">👆 KLIK USER: alert / confirm / prompt dialog native &amp; Cetak Dokumen (window.print, respect.printElement)</span>
+          <span class="badge-interactive">👆 KLIK USER: Input, Form, Clipboard, Drag &amp; Drop</span>
+        </div>
+        <p class="muted" style="font-size: 11px;">
+          *Catatan Keamanan: Kamera, Mikrofon, dan Web Audio sengaja memerlukan interaksi (klik) pengguna karena kebijakan autoplay & permission sandbox browser Windows.
+        </p>
+        <p class="muted" style="font-size: 11px; margin-top: 4px;">
+          💡 Panduan: fitur <strong>Secure Context</strong> (crypto.subtle, crypto.randomUUID, navigator.clipboard, ServiceWorker, navigator.deviceMemory) hanya terbuka bila aplikasi dijalankan lewat <strong>In-Memory Local Server</strong> (origin <code>http://127.0.0.1</code>), bukan Virtual Host <code>http://app</code>. Bandingkan hasil di tab <strong>Uji Interaktif</strong> pada kedua mode lalu ekspor log untuk melihat selisihnya.
+        </p>
+      </div>
+
+      <div class="grid-4">
+        <div class="card stat-tile">
+          <span class="stat-label">Web Standards Score</span>
+          <span class="stat-value ok" id="totalScoreVal">--%</span>
+          <span class="stat-sub">Persentase kelulusan standar web</span>
+          <div class="meter-bar"><div class="meter-fill" id="scoreMeterFill"></div></div>
+        </div>
+
+        <div class="card stat-tile">
+          <span class="stat-label">Total Fitur Lulus</span>
+          <span class="stat-value info" id="totalPassedVal">-- / --</span>
+          <span class="stat-sub">Fitur HTML5, CSS, JS teruji</span>
+        </div>
+
+        <div class="card stat-tile">
+          <span class="stat-label">Global Window APIs</span>
+          <span class="stat-value info" id="totalApisVal">--</span>
+          <span class="stat-sub">API & constructors terpasang</span>
+        </div>
+
+        <div class="card stat-tile">
+          <span class="stat-label">GPU Renderer</span>
+          <span class="stat-value warn" id="gpuVendor" style="font-size: 15px; font-weight: 700; word-break: break-all;">--</span>
+          <span class="stat-sub" id="gpuRenderer" style="font-size: 11px;">Mendeteksi hardware...</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card highlight">
+          <div class="card-header">
+            <h3>🌐 Browser Environment & Runtime Engine</h3>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <tbody>
+                <tr><td><strong>Engine Name</strong></td><td id="envEngineName">Chromium / Miniblink Hybrid</td></tr>
+                <tr><td><strong>User-Agent</strong></td><td><code id="envUserAgent" class="code-pill" style="white-space: normal;">--</code></td></tr>
+                <tr><td><strong>Respect IPC Status</strong></td><td><span class="status-badge pass" id="envIpcStatus">IPC Connected</span></td></tr>
+                <tr><td><strong>Secure Context</strong></td><td id="envSecureContext">--</td></tr>
+                <tr><td><strong>Language Standard</strong></td><td id="envLanguage">--</td></tr>
+                <tr><td><strong>Online Connection</strong></td><td id="envOnline">--</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>⚡ Quick Stress Rig Status</h3>
+          </div>
+          <p class="muted" style="margin-bottom: 12px; font-size: 12px;">
+            Suite ini menguji batas ketahanan render, performa JavaScript VM, alokasi memori, dan kelengkapan API dari engine browser desktop Respect.
+          </p>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr><th>Subsystem Pengujian</th><th>Target Uji</th><th>Kesiapan</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>DOM Thrashing</strong></td><td>5,000 - 20,000 Nodes</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Canvas 2D Physics</strong></td><td>20,000 Particles @ 60 FPS</td><td><span class="status-badge pass">LIVE 60 FPS</span></td></tr>
+                <tr><td><strong>Web Worker Threading</strong></td><td>Prime Sieve & Matrix 250x250</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Memory Buffer Chunking</strong></td><td>200 MB TypedArray Blocks</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Audio Oscilloscope</strong></td><td>Real-time FFT 1024 Sampling</td><td><span class="badge-interactive">KLIK USER</span></td></tr>
+                <tr><td><strong>Camera & Media Stream</strong></td><td>Zero-file Synthetic Canvas Video</td><td><span class="status-badge pass">AUTONOMOUS</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Essential Global Namespaces Evaluated -->
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+          <h3>🔍 Nilai Evaluasi Nyata Objek Global (window.location, navigator, screen, document)</h3>
+        </div>
+        <p class="muted" style="font-size: 12px; margin-bottom: 12px;">
+          Nilai nyata yang sedang aktif di memori runtime browser, termasuk <code>location.origin</code>, <code>hardwareConcurrency</code>, dan mode rendering:
+        </p>
+        <div class="grid-2" id="essentialNamespacesContainer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 2. DUMP WINDOW JS APIS TAB -->
+    <div id="tab-apidump" class="tab-pane">
+      <div class="grid-4">
+        <div class="card stat-tile">
+          <span class="stat-label">Total APIs Terdaftar</span>
+          <span class="stat-value info" id="totalApisCountTile">--</span>
+          <span class="stat-sub">Object.getOwnPropertyNames</span>
+        </div>
+        <div class="card stat-tile">
+          <span class="stat-label">Classes / Constructors</span>
+          <span class="stat-value ok" id="totalConstructorsVal">--</span>
+          <span class="stat-sub">ES6 Classes & Window types</span>
+        </div>
+        <div class="card stat-tile">
+          <span class="stat-label">Callable Functions</span>
+          <span class="stat-value warn" id="totalFunctionsVal">--</span>
+          <span class="stat-sub">Global methods bawaan</span>
+        </div>
+        <div class="card stat-tile">
+          <span class="stat-label">Namespaces & Objects</span>
+          <span class="stat-value info" id="totalObjectsVal">--</span>
+          <span class="stat-sub">Subsystems (crypto, nav, etc.)</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🧬 Window & Global Scope Property Explorer (Klik Baris untuk Detail Mendalam)</h3>
+          <div class="actions">
+            <select id="apiFilterSelect" class="btn btn-sm">
+              <option value="all">Semua Tipe API</option>
+              <option value="constructor">Class / Constructor</option>
+              <option value="function">Callable Function</option>
+              <option value="object">Object Namespace</option>
+              <option value="value">Primitive / Value</option>
+              <option value="respect">Respect Injected Hooks</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: center;">
+          <input type="text" id="apiSearchInput" class="search-input" placeholder="Cari nama atau nilai API (contoh: origin, crypto, Worker, mbQuery, matchMedia)...">
+          <span id="apiFilteredCount" class="muted" style="font-size: 11px; white-space: nowrap;">Memuat...</span>
+        </div>
+
+        <div class="table-wrapper" style="max-height: 550px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 25%;">Nama Properti / API</th>
+                <th style="width: 22%;">Klasifikasi & Tipe</th>
+                <th style="width: 38%;">Nilai Saat Ini (Current Value)</th>
+                <th style="width: 15%;">Asal Objek</th>
+              </tr>
+            </thead>
+            <tbody id="apiDumpTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. FINGERPRINT & HARDWARE LAB TAB -->
+    <div id="tab-fingerprint" class="tab-pane">
+      <div class="grid-2">
+        <!-- GPU & WebGL -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🎮 Unmasked GPU & WebGL Hardware</h3>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <tbody>
+                <tr><td><strong>WebGL API Version</strong></td><td id="glVersion">--</td></tr>
+                <tr><td><strong>Unmasked GPU Renderer</strong></td><td><code id="gpuRendererDetailed" class="code-pill">--</code></td></tr>
+                <tr><td><strong>Max Texture Size</strong></td><td id="glMaxTexture">--</td></tr>
+                <tr><td><strong>Shading Language</strong></td><td id="glShadingLang">--</td></tr>
+                <tr><td><strong>Supported Extensions</strong></td><td id="glExtensionsCount">--</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Canvas & Audio Fingerprint Hashes -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🎨 Canvas & Audio Fingerprint Hashes</h3>
+          </div>
+          <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+            <div style="flex: 1;">
+              <span class="telemetry-label">Canvas 2D Fingerprint Hash</span>
+              <div style="font-size: 18px; font-weight: 800; font-family: var(--font-mono); color: var(--accent-cyan); margin: 4px 0;" id="canvasHashVal">--</div>
+              <img id="canvasFpPreview" style="border: 1px solid var(--border-color); border-radius: 4px; max-width: 100%; height: auto;" alt="Canvas Preview">
+            </div>
+            <div style="flex: 1;">
+              <span class="telemetry-label">AudioContext Synthetic Hash</span>
+              <div style="font-size: 18px; font-weight: 800; font-family: var(--font-mono); color: var(--accent-purple); margin: 4px 0;" id="audioHashVal">--</div>
+              <span class="muted" style="font-size: 11px;">Dihitung dari render buffer DynamicsCompressor 44.1kHz.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fonts & Codecs Probe -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>🔤 System Installed Fonts Probe (<span id="fontsDetectedCount">--</span>)</h3>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Mendeteksi keberadaan font Windows lokal via canvas measurement delta:</p>
+          <div id="fontsBadgeContainer" style="display: flex; flex-wrap: wrap; gap: 4px; max-height: 200px; overflow-y: auto;">
+            <!-- Fonts populated here -->
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>💾 Storage Subsystem & Quota</h3>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <tbody>
+                <tr><td><strong>Storage Quota Estimate</strong></td><td id="storageQuotaVal">--</td></tr>
+                <tr><td><strong>LocalStorage</strong></td><td><span class="status-badge pass">YES</span></td></tr>
+                <tr><td><strong>SessionStorage</strong></td><td><span class="status-badge pass">YES</span></td></tr>
+                <tr><td><strong>IndexedDB Database</strong></td><td><span class="status-badge pass">YES</span></td></tr>
+                <tr><td><strong>Origin Private File System (OPFS)</strong></td><td><span class="status-badge info" id="storageOpfs">PROBING</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Codecs Support Matrix -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>🎬 Video Codecs Compatibility</h3>
+          </div>
+          <div id="videoCodecsList"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>🔊 Audio Codecs Compatibility</h3>
+          </div>
+          <div id="audioCodecsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. CAPABILITY MATRIX TAB -->
+    <div id="tab-capability" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h3>🎯 170+ Web Standards Diagnostic Matrix</h3>
+          <div class="actions">
+            <button class="btn btn-sm btn-primary" onclick="CapabilityEngine.runAllTests();">🔄 Jalankan Ulang Test</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper" style="max-height: 600px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 15%;">Kategori</th>
+                <th style="width: 35%;">Fitur Standar Web</th>
+                <th style="width: 15%;">Hasil Uji</th>
+                <th style="width: 35%;">Detail / Log Eksekusi</th>
+              </tr>
+            </thead>
+            <tbody id="capabilityTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. MEDIA LAB TAB -->
+    <div id="tab-medialab" class="tab-pane">
+      <div class="grid-2">
+        <!-- Camera Video Feed & Snapshot -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📷 Live Camera & Image Filters <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <div class="actions">
+              <button class="btn btn-sm btn-success" id="btnStartCam">Buka Kamera</button>
+              <button class="btn btn-sm btn-danger" id="btnStopCam">Stop</button>
+            </div>
+          </div>
+          <div class="media-preview-box">
+            <video id="cameraVideo" autoplay playsinline muted style="display: none;"></video>
+            <canvas id="cameraVirtualFeed" width="640" height="360" style="width: 100%; height: 100%; object-fit: contain; display: block;"></canvas>
+          </div>
+          <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center;">
+            <select id="cameraFilterSelect" class="btn btn-sm">
+              <option value="none">Tanpa Filter</option>
+              <option value="grayscale">Grayscale</option>
+              <option value="invert">Invert Colors</option>
+              <option value="sepia">Sepia Tone</option>
+            </select>
+            <button class="btn btn-sm btn-primary" id="btnSnapCam">Ambil Snapshot Canvas</button>
+            <span id="cameraStatus" class="muted" style="font-size: 11px;">Standby</span>
+          </div>
+          <div style="margin-top: 10px;">
+            <canvas id="cameraCanvas" style="width: 100%; height: 120px; border: 1px solid var(--border-color); border-radius: 4px; object-fit: contain;"></canvas>
+          </div>
+        </div>
+
+        <!-- Microphone Oscilloscope & VU Meter -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🎙️ Microphone & Real-Time Waveform Oscilloscope <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <div class="actions">
+              <button class="btn btn-sm btn-success" id="btnStartMic">Buka Mic</button>
+              <button class="btn btn-sm btn-danger" id="btnStopMic">Stop</button>
+            </div>
+          </div>
+          <canvas id="micCanvas" class="oscilloscope-canvas" width="600" height="150"></canvas>
+          <div style="margin-top: 8px;">
+            <span class="telemetry-label">Live VU Decibel Meter</span>
+            <div class="meter-bar"><div class="meter-fill green" id="micMeterFill"></div></div>
+            <span id="micStatus" class="muted" style="font-size: 11px;">Standby</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Web Audio Synthesizer -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🎹 Web Audio Harmonic Synthesizer <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <div class="actions">
+              <button class="btn btn-sm btn-primary" id="btnStartSynth">Bunyikan</button>
+              <button class="btn btn-sm btn-danger" id="btnStopSynth">Hentikan</button>
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span class="telemetry-label">Frekuensi Gelombang</span>
+              <span id="synthFreqVal" class="code-pill">440 Hz</span>
+            </div>
+            <input type="range" id="synthFreqRange" min="100" max="2000" value="440" style="width: 100%;">
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="synthWaveSelect" class="btn btn-sm">
+              <option value="sine">Sine Wave (Murni)</option>
+              <option value="square">Square Wave (Retro 8-bit)</option>
+              <option value="sawtooth">Sawtooth Wave</option>
+              <option value="triangle">Triangle Wave</option>
+            </select>
+            <span id="synthStatus" class="muted" style="font-size: 11px;">Standby</span>
+          </div>
+        </div>
+
+        <!-- Autonomous Video Generator -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📺 Autonomous Video Pipeline (Zero-File Canvas Stream) <span class="badge-auto" style="margin-left: 8px;">Otomatis</span></h3>
+          </div>
+          <div class="media-preview-box">
+            <video id="testVideo" controls autoplay loop playsinline muted></video>
+          </div>
+          <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span id="videoStatus" class="muted" style="font-size: 11px;">Stream Active</span>
+            <button class="btn btn-sm" onclick="document.getElementById('testVideo').requestPictureInPicture()">Picture-in-Picture</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speech TTS -->
+      <div class="card">
+        <div class="card-header">
+          <h3>🗣️ Speech Synthesis (TTS Text-to-Speech) <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+        </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 8px;">
+          <input type="text" id="ttsTextInput" class="search-input" value="Respect Desktop adalah browser mandiri super cepat dan handal.">
+          <button class="btn btn-primary" id="btnSpeak">Ucapkan Teks</button>
+          <button class="btn btn-danger" id="btnStopSpeak">Batal</button>
+        </div>
+        <span id="ttsStatus" class="muted" style="font-size: 11px;">Standby</span>
+      </div>
+    </div>
+
+    <!-- 6. STRESS BENCHMARKS TAB -->
+    <div id="tab-stress" class="tab-pane">
+      <!-- 20K Particle Physics Simulation -->
+      <div class="card highlight">
+        <div class="card-header">
+          <h3>⚡ 2D Canvas Particle Physics Stress Rig (Hingga 20,000 Partikel) <span class="badge-auto" style="margin-left: 8px;">Live Render</span></h3>
+          <div class="benchmark-fps-meter">
+            <span class="val" id="fpsValue">60</span>
+            <span class="unit">FPS (Min: <span id="minFpsValue">--</span>)</span>
+          </div>
+        </div>
+        <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span class="telemetry-label">Jumlah Partikel Simultan (Geser Slider untuk Menguji Beban)</span>
+          <span id="particleCountLabel" class="code-pill">5000 Particles</span>
+        </div>
+        <input type="range" id="particleCountRange" min="1000" max="20000" step="1000" value="5000" style="width: 100%; margin-bottom: 12px;">
+        <canvas id="particleCanvas" width="900" height="300" style="width: 100%; height: 300px; background: #070b12; border-radius: 6px; border: 1px solid var(--border-color);"></canvas>
+      </div>
+
+      <div class="grid-2">
+        <!-- DOM Thrashing -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🌳 DOM Thrashing & Mutation Benchmark <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <button class="btn btn-sm btn-primary" id="btnRunDomStress">Uji 5,000 Nodes</button>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji kecepatan pembuatan node, layout reflow, kalkulasi style, dan pembersihan memori DOM:</p>
+          <div id="domStressContainer" style="max-height: 80px; overflow: hidden; border: 1px solid var(--border-color); border-radius: 4px; padding: 4px; margin-bottom: 8px; background: #070b12;"></div>
+          <pre class="code-block" id="domStressResult">Tekan tombol di atas untuk menjalankan pengujian.</pre>
+        </div>
+
+        <!-- Compute Main vs Worker -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🧠 JavaScript Compute Benchmark (Prime Sieve) <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <div class="actions">
+              <button class="btn btn-sm" id="btnRunMainCompute">Main Thread (Sync)</button>
+              <button class="btn btn-sm btn-success" id="btnRunWorkerCompute">Web Worker (Thread)</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji kecepatan komputasi algoritma Sieve of Eratosthenes hingga 1,500,000 bilangan prima:</p>
+          <pre class="code-block" id="computeResult">Pilih Main Thread atau Web Worker untuk mengukur durasi eksekusi.</pre>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Memory Stress -->
+        <div class="card">
+          <div class="card-header">
+            <h3>💾 Memory Buffer Allocation & Garbage Collection <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <button class="btn btn-sm btn-primary" id="btnRunMemStress">Alokasikan 200 MB</button>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji ketahanan alokasi RAM chunking TypedArray dan latensi dereferencing GC:</p>
+          <pre class="code-block" id="memStressResult">Tekan tombol untuk mengalokasikan memori.</pre>
+        </div>
+
+        <!-- Storage IO -->
+        <div class="card">
+          <div class="card-header">
+            <h3>⚡ Storage I/O Throughput Stress <span class="badge-interactive" style="margin-left: 8px;">Memerlukan Klik</span></h3>
+            <button class="btn btn-sm btn-primary" id="btnRunStorageStress">Uji 1,000 Transaksi</button>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">Menguji operasi bulk write, bulk read, dan bulk delete per detik (ops/sec):</p>
+          <pre class="code-block" id="storageIoResult">Tekan tombol untuk menguji throughput I/O.</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. INTERACTIVE FEATURE LAB / QUICK RUNNER TAB -->
+    <div id="tab-runner" class="tab-pane">
+
+      <div class="guide-banner">
+        <h4>🧪 Pusat Uji Interaktif (Quick Runner)</h4>
+        <p style="color: #cbd5e1; font-size: 12px; margin-bottom: 6px;">
+          Semua aksi yang membutuhkan klik, dialog, atau interaksi dikumpulkan di satu tempat ini.
+          Jalankan per-aksi memakai tombol <em>Jalankan</em>, atau tekan
+          <strong>▶ Jalankan Semua (Otomatis)</strong> untuk mengeksekusi seluruh uji aman secara berurutan.
+          Setiap hasil otomatis tercatat di log dan ikut diekspor ke laporan (JSON / Markdown / Log Mentah).
+        </p>
+        <p class="muted" style="font-size: 11px;">
+          Aksi bertanda <span class="status-badge warn">DIALOG</span> membuka alert/confirm/prompt/popup native.
+          Aksi bertanda <span class="status-badge fail">HAZARD</span> (misalnya <code>window.open</code>) dapat menimpa window utama
+          atau membekukan aplikasi pada engine embedded ini — aksi HAZARD <strong>tidak pernah</strong> dijalankan oleh tombol Run All,
+          hanya bisa diklik manual satu per satu. Siapkan restart aplikasi sebelum mencobanya dan catat hasilnya di kolom Catatan.
+        </p>
+      </div>
+
+      <div class="card highlight">
+        <div class="card-header">
+          <h3>⚙️ Kontrol Otomasi</h3>
+          <div class="actions">
+            <button class="btn btn-sm btn-primary" onclick="runAllFeatureTests(false)">▶ Jalankan Semua (Otomatis)</button>
+            <button class="btn btn-sm" onclick="runAllFeatureTests(true)">🧭 Termasuk Dialog Manual</button>
+            <button class="btn btn-sm btn-danger" onclick="stopFeatureTests()">⏹ Stop</button>
+            <button class="btn btn-sm" onclick="resetFeatureTests()">🔁 Reset</button>
+          </div>
+        </div>
+        <div class="grid-4">
+          <div class="card stat-tile">
+            <span class="stat-label">Aksi Teruji</span>
+            <span class="stat-value info" id="runnerTotal">0</span>
+            <span class="stat-sub">Aksi yang sudah dijalankan</span>
+          </div>
+          <div class="card stat-tile">
+            <span class="stat-label">Lulus</span>
+            <span class="stat-value ok" id="runnerPassed">0</span>
+            <span class="stat-sub">Berjalan sesuai harapan</span>
+          </div>
+          <div class="card stat-tile">
+            <span class="stat-label">Gagal</span>
+            <span class="stat-value fail" id="runnerFailed">0</span>
+            <span class="stat-sub">Ditolak / tidak didukung</span>
+          </div>
+          <div class="card stat-tile">
+            <span class="stat-label">Interceptor</span>
+            <span class="stat-value warn" style="font-size: 14px;" id="runnerInterceptor">--</span>
+            <span class="stat-sub">mbQuery / ipc / fetch</span>
+          </div>
+        </div>
+        <div id="runnerProgressWrap" class="meter-bar" style="display: none;"><div class="meter-fill green" id="runnerProgress"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🤖 Aksi Otomatis (tanpa interaksi)</h3>
+        </div>
+        <div class="table-wrapper" style="max-height: 480px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Kategori</th>
+                <th style="width: 38%;">Aksi Uji</th>
+                <th style="width: 34%;">Hasil</th>
+                <th style="width: 16%;">Jalankan</th>
+              </tr>
+            </thead>
+            <tbody id="runnerAutoBody"><!-- Populated by JS --></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>👆 Aksi Interaktif (perlu klik / dialog native)</h3>
+        </div>
+        <div class="table-wrapper" style="max-height: 520px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Kategori</th>
+                <th style="width: 38%;">Aksi Uji</th>
+                <th style="width: 34%;">Hasil</th>
+                <th style="width: 16%;">Jalankan</th>
+              </tr>
+            </thead>
+            <tbody id="runnerManualBody"><!-- Populated by JS --></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🎬 Uji Media Manual (MP3 / MP4 / URL)</h3>
+        </div>
+        <div class="grid-2">
+          <div>
+            <label class="muted" style="font-size: 11px;">Pilih file audio/video lokal, lalu jalankan aksi <code>media-local-file</code>:</label>
+            <input type="file" id="mediaFileInput" accept="audio/*,video/*" style="margin-top:6px;">
+          </div>
+          <div>
+            <label class="muted" style="font-size: 11px;">URL media langsung (mp3/mp4), lalu jalankan <code>media-direct-url</code>:</label>
+            <input type="text" id="mediaUrlInput" class="modal-textarea" style="height:auto; padding:6px; margin-top:6px;" placeholder="https://contoh.com/audio.mp3">
+          </div>
+        </div>
+        <p class="muted" style="font-size: 11px; margin-top: 8px;">
+          Aksi <code>streaming-mse</code> dan <code>streaming-hls-native</code> (otomatis) menentukan apakah YouTube/hls.js bisa jalan.
+          HLS (<code>.m3u8</code>) butuh MSE + hls.js; Spotify Web butuh DRM (EME/Widevine).
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>📋 Checklist Verifikasi Manual</h3>
+            <div class="actions">
+              <button class="btn btn-sm btn-danger" onclick="clearManualState()">🗑 Bersihkan Semua</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">
+            Tandai setelah memverifikasi perilaku engine secara manual. Status tersimpan otomatis dan ikut dilampirkan ke laporan.
+            Tombol Bersihkan menghapus checklist &amp; catatan dari sesi sebelumnya agar log baru tidak memuat data lama.
+          </p>
+          <div id="manualChecklistContainer" class="checklist-box"><!-- Populated by JS --></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>📝 Catatan Manual Penguji</h3>
+          </div>
+          <p class="muted" style="font-size: 11px; margin-bottom: 8px;">
+            Catat kejadian penting (contoh: "saat klik Stop Camera, aplikasi force close"). Ikut tersimpan dan diekspor ke laporan.
+          </p>
+          <textarea id="manualNotesInput" class="modal-textarea" style="height: 200px;" placeholder="Tulis temuan manual di sini..."></textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TERMINAL / CONSOLE LOG HUD & INTERACTIVE REPL -->
+    <div class="terminal-card">
+      <div class="terminal-header">
+        <span>🖥️ Live Diagnostic Event Telemetry &amp; Interactive REPL</span>
+        <button class="btn btn-sm" onclick="clearTerminal()">Bersihkan Log</button>
+      </div>
+      <div class="terminal-body" id="terminalBody">
+        <!-- Live logs populated here -->
+      </div>
+      <div class="repl-container">
+        <span class="repl-prompt">&gt;</span>
+        <input type="text" id="replInput" class="repl-input" placeholder="Ketik perintah JS untuk evaluasi langsung (contoh: location.origin, navigator.userAgent, window.mbQuery)... Tekan Enter untuk menjalankan.">
+        <button class="btn btn-sm btn-primary" id="btnReplRun">Jalankan</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- =======================================================================
+       REPORT INSPECTOR MODAL
+       ======================================================================= -->
+  <div id="reportModal" class="modal-backdrop">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 id="modalReportTitle">💾 Laporan Audit Browser</h3>
+        <div style="display: flex; gap: 8px;">
+          <button id="modalTabJson" class="btn btn-sm btn-primary" onclick="switchReportFormat('json')">Format JSON</button>
+          <button id="modalTabMd" class="btn btn-sm" onclick="switchReportFormat('markdown')">Format Markdown</button>
+          <button id="modalTabLog" class="btn btn-sm" onclick="switchReportFormat('text')">Log Mentah</button>
+          <button class="btn btn-sm" onclick="closeReportModal()">✕ Tutup</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="font-size: 11px;">
+          Laporan di bawah ini memuat hasil evaluasi lengkap seluruh standar web, spesifikasi hardware, GPU unmasked, dan daftar API. Anda dapat menyalinnya langsung atau mengunduh berkasnya:
+        </p>
+        <textarea id="reportContentArea" class="modal-textarea" readonly></textarea>
+      </div>
+      <div class="modal-footer">
+        <span class="muted" style="font-size: 11px;">Status: Siap disalin atau diunduh</span>
+        <div style="display: flex; gap: 8px;">
+          <button id="btnModalCopy" class="btn btn-primary" onclick="copyReportFromModal()">📋 Salin Semua ke Clipboard</button>
+          <button class="btn" onclick="downloadReportFile()">💾 Unduh File</button>
+          <button class="btn btn-danger" onclick="closeReportModal()">Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       MODULAR SCRIPTS
+       ======================================================================= -->
+  <script src="js/sysprofile.js"></script>
+  <script src="js/apidump.js"></script>
+  <script src="js/capability.js"></script>
+  <script src="js/media.js"></script>
+  <script src="js/stress.js"></script>
+  <script src="js/interaction.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

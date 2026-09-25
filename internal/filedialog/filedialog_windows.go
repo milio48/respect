@@ -17,10 +17,15 @@ var (
 	comdlg32                 = syscall.NewLazyDLL("comdlg32.dll")
 	user32                   = syscall.NewLazyDLL("user32.dll")
 	kernel32                 = syscall.NewLazyDLL("kernel32.dll")
+	shell32                  = syscall.NewLazyDLL("shell32.dll")
+	ole32                    = syscall.NewLazyDLL("ole32.dll")
 	procGetOpenFileNameW     = comdlg32.NewProc("GetOpenFileNameW")
 	procCommDlgExtendedError = comdlg32.NewProc("CommDlgExtendedError")
 	procGetWindowThreadPID   = user32.NewProc("GetWindowThreadProcessId")
 	procGetCurrentThreadID   = kernel32.NewProc("GetCurrentThreadId")
+	procSHBrowseForFolderW   = shell32.NewProc("SHBrowseForFolderW")
+	procSHGetPathFromIDListW = shell32.NewProc("SHGetPathFromIDListW")
+	procCoTaskMemFree        = ole32.NewProc("CoTaskMemFree")
 )
 
 const (
@@ -28,10 +33,61 @@ const (
 	OFN_PATHMUSTEXIST = 0x00000800
 	OFN_FILEMUSTEXIST = 0x00001000
 	OFN_EXPLORER      = 0x00080000
+
+	BIF_RETURNONLYFSDIRS = 0x00000001
+	BIF_NEWDIALOGSTYLE   = 0x00000040
 )
 
 // iconFilter adalah daftar filter dialog untuk file icon (.ico).
 const iconFilter = "File Icon (*.ico)\x00*.ico\x00Semua File (*.*)\x00*.*\x00\x00"
+
+// htmlFilter adalah daftar filter dialog untuk file HTML.
+const htmlFilter = "File HTML (*.html;*.htm)\x00*.html;*.htm\x00Semua File (*.*)\x00*.*\x00\x00"
+
+// browseInfoW adalah cerminan struktur BROWSEINFOW milik Windows untuk dialog pilih folder.
+type browseInfoW struct {
+	hwndOwner      uintptr
+	pidlRoot       uintptr
+	pszDisplayName *uint16
+	lpszTitle      *uint16
+	ulFlags        uint32
+	lpfn           uintptr
+	lParam         uintptr
+	iImage         int32
+}
+
+// PickFolder membuka dialog pemilih folder native Windows.
+func PickFolder(owner uintptr, title string) (string, error) {
+	if err := procSHBrowseForFolderW.Find(); err != nil {
+		return "", errors.New("dialog folder Windows tidak tersedia: " + err.Error())
+	}
+
+	if title == "" {
+		title = "Pilih folder project web (dist / build)"
+	}
+	titleUTF16 := toUTF16(title)
+	bi := browseInfoW{
+		hwndOwner: safeOwner(owner),
+		lpszTitle: &titleUTF16[0],
+		ulFlags:   BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE,
+	}
+
+	pidl, _, _ := procSHBrowseForFolderW.Call(uintptr(unsafe.Pointer(&bi)))
+	if pidl == 0 {
+		return "", nil // Pengguna membatalkan dialog
+	}
+	defer procCoTaskMemFree.Call(pidl)
+
+	pathBuf := make([]uint16, 4096)
+	procSHGetPathFromIDListW.Call(pidl, uintptr(unsafe.Pointer(&pathBuf[0])))
+
+	return syscall.UTF16ToString(pathBuf), nil
+}
+
+// PickHTML membuka dialog "Open" untuk memilih file .html / .htm.
+func PickHTML(owner uintptr) (string, error) {
+	return PickFile(owner, "Pilih file HTML lokal", htmlFilter)
+}
 
 // openFileNameW adalah cerminan struktur OPENFILENAMEW milik Windows.
 type openFileNameW struct {

@@ -1,17 +1,22 @@
 package mb132
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
 
+	"github.com/klauspost/compress/zstd"
 	"respect-app/assets"
+	"respect-app/internal/tarball"
 )
 
 var (
@@ -46,6 +51,8 @@ var (
 	procMbSetNavigationToNewWindowEnable *syscall.Proc
 	procMbOnLoadUrlBegin                 *syscall.Proc
 	procMbNetSetHTTPHeaderFieldUtf8      *syscall.Proc
+	procMbNetSetData                     *syscall.Proc
+	procMbNetSetMIMEType                 *syscall.Proc
 	procMbOnDidCreateScriptContext       *syscall.Proc
 	procMbRunJs                          *syscall.Proc
 	procMbEnableHighDPISupport           *syscall.Proc
@@ -55,16 +62,20 @@ var (
 	procMbOnTitleChanged                 *syscall.Proc
 	procMbOnDownload                     *syscall.Proc
 	procMbPopupDownloadMgr               *syscall.Proc
+	procMbOnConsole                      *syscall.Proc
 
 	// Windows User32 & Kernel32 untuk window, dialog, icon, dan proses
-	user32               = syscall.NewLazyDLL("user32.dll")
-	kernel32             = syscall.NewLazyDLL("kernel32.dll")
-	procSendMessageW     = user32.NewProc("SendMessageW")
-	procLoadImageW       = user32.NewProc("LoadImageW")
-	procLoadIconW        = user32.NewProc("LoadIconW")
-	procMessageBoxW      = user32.NewProc("MessageBoxW")
-	procSetWindowTextW   = user32.NewProc("SetWindowTextW")
-	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
+	user32                  = syscall.NewLazyDLL("user32.dll")
+	kernel32                = syscall.NewLazyDLL("kernel32.dll")
+	procSendMessageW        = user32.NewProc("SendMessageW")
+	procLoadImageW          = user32.NewProc("LoadImageW")
+	procLoadIconW           = user32.NewProc("LoadIconW")
+	procMessageBoxW         = user32.NewProc("MessageBoxW")
+	procSetWindowTextW      = user32.NewProc("SetWindowTextW")
+	procShowWindow          = user32.NewProc("ShowWindow")
+	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
+	procGetModuleHandleW    = kernel32.NewProc("GetModuleHandleW")
+	procExitProcess         = kernel32.NewProc("ExitProcess")
 )
 
 const (
@@ -137,37 +148,54 @@ func installVehHandler() {
 	})
 }
 
-// cleanLocalArtifacts menghapus cookies.dat yang sempat tertulis di folder executable/cwd
+// cleanLocalArtifacts menghapus cookies.dat atau cookie.dat yang sempat tertulis di folder executable/cwd
 func cleanLocalArtifacts() {
-	self, err := os.Executable()
-	if err == nil {
-		dir := filepath.Dir(self)
+	cleanDir := func(dir string) {
+		if dir == "" {
+			return
+		}
 		_ = os.Remove(filepath.Join(dir, "cookies.dat"))
 		_ = os.Remove(filepath.Join(dir, "cookies.dat-journal"))
+		_ = os.Remove(filepath.Join(dir, "cookie.dat"))
+		_ = os.Remove(filepath.Join(dir, "cookie.dat-journal"))
 	}
-	cwd, err := os.Getwd()
-	if err == nil {
-		_ = os.Remove(filepath.Join(cwd, "cookies.dat"))
-		_ = os.Remove(filepath.Join(cwd, "cookies.dat-journal"))
+	if self, err := os.Executable(); err == nil {
+		cleanDir(filepath.Dir(self))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		cleanDir(cwd)
 	}
 }
 
 // spawnDetachedCleanup menjalankan proses cmd independen di background
-// dengan delay kecil untuk membersihkan cookies.dat jika libcurl menuliskannya di detik akhir proses
+// dengan delay kecil untuk membersihkan sisa cookie jika libcurl menuliskannya di detik akhir proses
 func spawnDetachedCleanup() {
 	self, err := os.Executable()
 	if err != nil {
 		return
 	}
-	cookieFile := filepath.Join(filepath.Dir(self), "cookies.dat")
+	dir := filepath.Dir(self)
+	c1 := filepath.Join(dir, "cookies.dat")
+	c2 := filepath.Join(dir, "cookie.dat")
 
-	cmdStr := fmt.Sprintf("ping 127.0.0.1 -n 1 >nul & del /f /q \"%s\" >nul 2>&1", cookieFile)
+	cmdStr := fmt.Sprintf("ping 127.0.0.1 -n 1 >nul & del /f /q \"%s\" \"%s\" >nul 2>&1", c1, c2)
 	cmd := exec.Command("cmd.exe", "/C", cmdStr)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
 	}
 	_ = cmd.Start()
+}
+
+// setVirtualResponseHeader menetapkan header respons HTTP (response=1) untuk
+// request virtual host melalui mbNetSetHTTPHeaderFieldUtf8.
+func setVirtualResponseHeader(jobPtr uintptr, key, value string) {
+	if procMbNetSetHTTPHeaderFieldUtf8 == nil || jobPtr == 0 {
+		return
+	}
+	k := append([]byte(key), 0)
+	v := append([]byte(value), 0)
+	procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&k[0])), uintptr(unsafe.Pointer(&v[0])), 1)
 }
 
 // ptrToUtf8 membaca string UTF-8 yang ditunjuk oleh pointer memori C
@@ -187,7 +215,7 @@ func ptrToUtf8(ptr uintptr) string {
 }
 
 // GetAppSandboxDir mengembalikan path folder penyimpanan sandbox unik untuk aplikasi ini
-// di %LOCALAPPDATA%\respect\apps\<appName>\ sehingga sesi antar aplikasi tidak saling bentrok.
+// di %LOCALAPPDATA%\respect_desktop\apps\<appName>\ sehingga sesi antar aplikasi tidak saling bentrok.
 func GetAppSandboxDir() string {
 	base := os.Getenv("LOCALAPPDATA")
 	if base == "" {
@@ -216,7 +244,7 @@ func GetAppSandboxDir() string {
 		appName = "default"
 	}
 
-	appDir := filepath.Join(base, "respect", "apps", appName)
+	appDir := filepath.Join(base, "respect_desktop", "apps", appName)
 	_ = os.MkdirAll(appDir, 0755)
 	return appDir
 }
@@ -245,24 +273,26 @@ func findDLL() (string, error) {
 	}
 
 	// Jika mode release (single file .exe mandiri dengan engine tertanam)
-	if len(assets.BlinkDLL) > 0 {
+	if len(assets.BlinkDLLZst) > 0 {
 		return ensureExtractedDLL()
 	}
 
 	return "", errors.New("file Miniblink 132 DLL (blink.dll atau mb132_x64.dll) tidak ditemukan di folder aplikasi")
 }
 
-// ensureExtractedDLL mengekstrak embedded blink.dll ke cache lokal sistem (%LocalAppData%\respect\engine)
+const expectedBlinkDLLSize = 68962816
+
+// ensureExtractedDLL mendekompresi dan mengekstrak embedded blink.dll.zst ke cache lokal sistem (%LocalAppData%\respect_desktop\engine)
 func ensureExtractedDLL() (string, error) {
 	baseDir := os.Getenv("LOCALAPPDATA")
 	if baseDir == "" {
-		baseDir = filepath.Join(os.TempDir(), "respect")
+		baseDir = filepath.Join(os.TempDir(), "respect_desktop")
 	}
-	engineDir := filepath.Join(baseDir, "respect", "engine")
+	engineDir := filepath.Join(baseDir, "respect_desktop", "engine")
 	targetPath := filepath.Join(engineDir, "blink.dll")
 
-	// Jika file cache sudah ada dengan ukuran sama persis, gunakan langsung (start instan)
-	if fi, err := os.Stat(targetPath); err == nil && fi.Size() == int64(len(assets.BlinkDLL)) {
+	// Jika file cache sudah ada dengan ukuran sama persis (68.96 MB), gunakan langsung (start instan 0 ms)
+	if fi, err := os.Stat(targetPath); err == nil && fi.Size() == expectedBlinkDLLSize {
 		return targetPath, nil
 	}
 
@@ -270,24 +300,42 @@ func ensureExtractedDLL() (string, error) {
 		return "", fmt.Errorf("gagal membuat direktori cache engine (%s): %w", engineDir, err)
 	}
 
-	tmpPath := targetPath + ".tmp"
-	if err := os.WriteFile(tmpPath, assets.BlinkDLL, 0644); err != nil {
-		if errDirect := os.WriteFile(targetPath, assets.BlinkDLL, 0644); errDirect != nil {
-			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() > 0 {
-				return targetPath, nil
-			}
-			return "", fmt.Errorf("gagal mengekstrak blink.dll ke %s: %w", targetPath, errDirect)
+	zr, err := zstd.NewReader(bytes.NewReader(assets.BlinkDLLZst))
+	if err != nil {
+		return "", fmt.Errorf("gagal inisialisasi dekompresi zstd: %w", err)
+	}
+	defer zr.Close()
+
+	pid := os.Getpid()
+	tmpPath := fmt.Sprintf("%s.tmp.%d", targetPath, pid)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
+			return targetPath, nil
 		}
-		return targetPath, nil
+		return "", fmt.Errorf("gagal membuka target DLL (%s): %w", targetPath, err)
 	}
 
-	_ = os.Remove(targetPath)
+	if _, err := io.Copy(tmpFile, zr); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("gagal mendekompresi blink.dll: %w", err)
+	}
+	_ = tmpFile.Close()
+
 	if err := os.Rename(tmpPath, targetPath); err != nil {
-		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() > 0 {
+		if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
 			_ = os.Remove(tmpPath)
 			return targetPath, nil
 		}
-		return tmpPath, nil
+		_ = os.Remove(targetPath)
+		if err := os.Rename(tmpPath, targetPath); err != nil {
+			if fi, sErr := os.Stat(targetPath); sErr == nil && fi.Size() == expectedBlinkDLLSize {
+				_ = os.Remove(tmpPath)
+				return targetPath, nil
+			}
+			return tmpPath, nil
+		}
 	}
 
 	return targetPath, nil
@@ -295,6 +343,7 @@ func ensureExtractedDLL() (string, error) {
 
 // Init memuat DLL dan menginisialisasi engine Miniblink 132
 func Init() error {
+	runtime.LockOSThread()
 	dllOnce.Do(func() {
 		// Bersihkan sisa cookies lama sebelum engine diinisialisasi
 		cleanLocalArtifacts()
@@ -391,6 +440,9 @@ func Init() error {
 		procMbOnTitleChanged, _ = dllMod.FindProc("mbOnTitleChanged")
 		procMbOnDownload, _ = dllMod.FindProc("mbOnDownload")
 		procMbPopupDownloadMgr, _ = dllMod.FindProc("mbPopupDownloadMgr")
+		procMbOnConsole, _ = dllMod.FindProc("mbOnConsole")
+		procMbNetSetData, _ = dllMod.FindProc("mbNetSetData")
+		procMbNetSetMIMEType, _ = dllMod.FindProc("mbNetSetMIMEType")
 
 		// Panggil mbInit terlebih dahulu agar Chromium AtExitManager terinisialisasi
 		procMbInit.Call(0)
@@ -421,10 +473,24 @@ type WebView struct {
 	onTitleChangedCb uintptr
 	onCreateViewCb   uintptr
 	onDownloadCb     uintptr
+	onConsoleCb      uintptr
+
+	// State fullscreen (compat layer)
+	fsActive bool
+	fsStyle  uintptr
+	fsRect   rect
+
+	virtualFiles map[string][]byte
+}
+
+// RegisterVirtualHost mendaftarkan kumpulan file in-memory untuk disajikan pada host virtual "http://app/".
+func (wv *WebView) RegisterVirtualHost(files map[string][]byte) {
+	wv.virtualFiles = files
 }
 
 // CreateWebWindow membuat jendela webview popup baru
 func CreateWebWindow(title string, width, height int) (*WebView, error) {
+	runtime.LockOSThread()
 	if err := Init(); err != nil {
 		return nil, err
 	}
@@ -456,6 +522,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 
 	// 2. Isolasi penyimpanan (Cookie & LocalStorage) ke folder AppData sandbox unik per nama aplikasi
 	wv.SetIsolatedStorage()
+	cleanLocalArtifacts()
 
 	// 3. Tangani pembuatan popup/tab baru (target="_blank" dan window.open)
 	// Alihkan navigasi langsung ke jendela aktif agar alur OAuth/popup login berjalan mulus tanpa silent drop
@@ -553,17 +620,97 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 		procMbOnDownload.Call(wv.Handle, wv.onDownloadCb, 0)
 	}
 
-	// 7. Injeksi HTTP Header (Accept-Language dan User-Agent) ke setiap request jaringan
-	// Menjamin Google dan website lain tidak pernah mendeteksi bahasa Cina
-	if procMbOnLoadUrlBegin != nil && procMbNetSetHTTPHeaderFieldUtf8 != nil {
+	// 7. Injeksi Virtual Host (In-Memory) & HTTP Header ke setiap request jaringan
+	if procMbOnLoadUrlBegin != nil {
 		langKey := []byte("Accept-Language\x00")
 		langVal := []byte(DefaultLanguage + "\x00")
 		uaKey := []byte("User-Agent\x00")
 		uaVal := []byte(DefaultUserAgent + "\x00")
 
 		wv.onLoadBeginCb = syscall.NewCallback(func(h, param, urlPtr, jobPtr uintptr) uintptr {
-			procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&langKey[0])), uintptr(unsafe.Pointer(&langVal[0])), 0)
-			procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&uaKey[0])), uintptr(unsafe.Pointer(&uaVal[0])), 0)
+			// A. Cek apakah request ditujukan ke Virtual Host in-memory (http://app/ atau https://app/)
+			if len(wv.virtualFiles) > 0 && urlPtr != 0 {
+				reqURL := ptrToUtf8(urlPtr)
+				const prefixHttp = "http://app/"
+				const prefixHttps = "https://app/"
+				const prefixHttpLocal = "http://app.local/"
+				const prefixHttpsLocal = "https://app.local/"
+				var relPath string
+				matched := false
+
+				if strings.HasPrefix(reqURL, prefixHttp) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttp)
+					matched = true
+				} else if strings.HasPrefix(reqURL, prefixHttps) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttps)
+					matched = true
+				} else if strings.HasPrefix(reqURL, prefixHttpLocal) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttpLocal)
+					matched = true
+				} else if strings.HasPrefix(reqURL, prefixHttpsLocal) {
+					relPath = strings.TrimPrefix(reqURL, prefixHttpsLocal)
+					matched = true
+				}
+
+				if matched {
+					if idx := strings.IndexAny(relPath, "?#"); idx != -1 {
+						relPath = relPath[:idx]
+					}
+					relPath = strings.TrimPrefix(relPath, "/")
+					if relPath == "" {
+						relPath = "index.html"
+					}
+
+					if data, ok := wv.virtualFiles[relPath]; ok {
+						mime := tarball.DetectMIME(relPath)
+						// Ekstrak pure MIME (tanpa charset) untuk procMbNetSetMIMEType agar tidak ditolak engine Chromium
+						if procMbNetSetMIMEType != nil {
+							pureMime := mime
+							if idx := strings.Index(pureMime, ";"); idx != -1 {
+								pureMime = strings.TrimSpace(pureMime[:idx])
+							}
+							mimeBytes := append([]byte(pureMime), 0)
+							procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
+						}
+						// Set response header Content-Type (lengkap) + CORS. Header ini penting
+						// agar <script type="module"> mengenali .mjs sebagai JavaScript (ES Module).
+						setVirtualResponseHeader(jobPtr, "Content-Type", mime)
+						setVirtualResponseHeader(jobPtr, "Access-Control-Allow-Origin", "*")
+						if procMbNetSetData != nil {
+							if len(data) > 0 {
+								procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
+							} else {
+								var empty byte
+								procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&empty)), 0)
+							}
+						}
+						return 1 // 1 (TRUE) = ditangani in-memory oleh Go, jangan kirim ke jaringan
+					}
+
+					// Path tidak ditemukan: sajikan halaman 404 HTML in-memory.
+					// (mb.h tidak menyediakan setter status code, hanya mbNetGetHttpStatusCode,
+					//  jadi status tetap 200 di level koneksi — namun body & MIME benar.)
+					if procMbNetSetMIMEType != nil {
+						mimeBytes := append([]byte("text/html"), 0)
+						procMbNetSetMIMEType.Call(jobPtr, uintptr(unsafe.Pointer(&mimeBytes[0])))
+					}
+					setVirtualResponseHeader(jobPtr, "Content-Type", "text/html; charset=utf-8")
+					if procMbNetSetData != nil {
+						notFound := []byte("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>404 Not Found</title></head>" +
+							"<body style=\"font-family:system-ui,sans-serif;background:#0a0e17;color:#94a3b8;text-align:center;padding-top:15vh\">" +
+							"<h1 style=\"color:#ef4444;font-size:48px;margin:0\">404</h1>" +
+							"<p>Respect Virtual Host: berkas tidak ditemukan.</p></body></html>")
+						procMbNetSetData.Call(jobPtr, uintptr(unsafe.Pointer(&notFound[0])), uintptr(len(notFound)))
+					}
+					return 1 // 1 = tangani in-memory, blokir dari jaringan
+				}
+			}
+
+			// B. Request jaringan biasa: suntikkan header Accept-Language dan User-Agent
+			if procMbNetSetHTTPHeaderFieldUtf8 != nil {
+				procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&langKey[0])), uintptr(unsafe.Pointer(&langVal[0])), 0)
+				procMbNetSetHTTPHeaderFieldUtf8.Call(jobPtr, uintptr(unsafe.Pointer(&uaKey[0])), uintptr(unsafe.Pointer(&uaVal[0])), 0)
+			}
 			return 0 // 0 = lanjutkan request secara normal
 		})
 		procMbOnLoadUrlBegin.Call(wv.Handle, wv.onLoadBeginCb, 0)
@@ -571,7 +718,7 @@ func CreateWebWindow(title string, width, height int) (*WebView, error) {
 
 	// 8. Injeksi skrip context V8: override navigator.language dan terapkan akselerasi mouse wheel yang natural
 	if procMbOnDidCreateScriptContext != nil && procMbRunJs != nil {
-		preloadScript := []byte(`
+		preloadStr := `
 try {
     Object.defineProperty(navigator, 'language', { get: () => 'id-ID', configurable: true });
     Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'], configurable: true });
@@ -603,7 +750,15 @@ try {
         }, { passive: false });
     }
 } catch(e) {}
-` + "\x00")
+`
+
+		if compatEnabled {
+			preloadStr += "\n" + compatPreloadJS() + "\n"
+		}
+		if !strings.HasSuffix(preloadStr, "\n") {
+			preloadStr += "\n"
+		}
+		preloadScript := []byte(preloadStr + "\x00")
 
 		wv.onScriptCtxCb = syscall.NewCallback(func(h, param, frameId, ctx, extGroup, worldId uintptr) uintptr {
 			procMbRunJs.Call(h, frameId, uintptr(unsafe.Pointer(&preloadScript[0])), 0, 0, 0, 0)
@@ -612,30 +767,46 @@ try {
 		procMbOnDidCreateScriptContext.Call(wv.Handle, wv.onScriptCtxCb, 0)
 	}
 
+	// 8b. Rekam console native (mbOnConsole) & pasang lapisan kompatibilitas (akali API absen)
+	wv.installConsoleCapture()
+	if compatEnabled {
+		wv.installCompat()
+	}
+
 	if title != "" {
 		wv.SetTitle(title)
 	}
 	wv.MoveToCenter()
 
 	// 9. Pasang handler OnClose agar saat tombol X titlebar diklik,
-	// message loop segera dihentikan sehingga proses langsung keluar dari Task Manager
+	// segera bersihkan artifacts dan akhiri proses tanpa zombie
 	if procMbOnClose != nil {
 		wv.onCloseCb = syscall.NewCallback(func(h, param, unuse uintptr) uintptr {
 			if wv.onDestroyUser != nil {
 				wv.onDestroyUser()
 			}
-			ExitMessageLoop()
-			return 0
+			cleanLocalArtifacts()
+			spawnDetachedCleanup()
+			if procExitProcess != nil {
+				procExitProcess.Call(0)
+			}
+			os.Exit(0)
+			return 1
 		})
 		procMbOnClose.Call(wv.Handle, wv.onCloseCb, 0)
 	}
 
-	// Pasang callback OnDestroy standar
+	// Pasang callback OnDestroy standar: segera bersihkan artifacts dan akhiri proses
 	wv.onDestroyCb = syscall.NewCallback(func(v, p1, p2 uintptr) uintptr {
 		if wv.onDestroyUser != nil {
 			wv.onDestroyUser()
 		}
-		ExitMessageLoop()
+		cleanLocalArtifacts()
+		spawnDetachedCleanup()
+		if procExitProcess != nil {
+			procExitProcess.Call(0)
+		}
+		os.Exit(0)
 		return 0
 	})
 	procMbOnDestroy.Call(wv.Handle, wv.onDestroyCb, 0)
@@ -689,9 +860,6 @@ func (v *WebView) SetIsolatedStorage() {
 	if err1 == nil && procMbSetCookieJarFullPath != nil {
 		procMbSetCookieJarFullPath.Call(v.Handle, uintptr(unsafe.Pointer(cookieFile)))
 	}
-	if err2 == nil && procMbSetCookieJarPath != nil {
-		procMbSetCookieJarPath.Call(v.Handle, uintptr(unsafe.Pointer(storagePath)))
-	}
 	if err2 == nil && procMbSetLocalStoragePath != nil {
 		procMbSetLocalStoragePath.Call(v.Handle, uintptr(unsafe.Pointer(storagePath)))
 	}
@@ -702,9 +870,15 @@ func (v *WebView) MoveToCenter() {
 	procMbMoveToCenter.Call(v.Handle)
 }
 
-// Show menampilkan jendela
+// Show menampilkan jendela dan memastikan window HWND aktif di layer terdepan
 func (v *WebView) Show() {
-	procMbShowWindow.Call(v.Handle, 1)
+	if procMbShowWindow != nil {
+		procMbShowWindow.Call(v.Handle, 1)
+	}
+	if v.hwnd != 0 {
+		procShowWindow.Call(v.hwnd, 5) // SW_SHOW = 5
+		procSetForegroundWindow.Call(v.hwnd)
+	}
 }
 
 // LoadURL memuat halaman web berdasarkan URL
@@ -736,6 +910,9 @@ func (v *WebView) HostHWND() uintptr {
 
 // HandleQuery mendaftarkan fungsi Go untuk merespons query JavaScript (window.mbQuery)
 func (v *WebView) HandleQuery(handler func(req string) string) {
+	if procMbOnJsQuery == nil || procMbResponseQuery == nil {
+		return
+	}
 	v.onQueryUser = handler
 
 	v.onQueryCb = syscall.NewCallback(func(handle uintptr, param uintptr, es uintptr, queryId int64, customMsg int32, reqPtr *byte) uintptr {
@@ -797,24 +974,28 @@ func (v *WebView) SetIcon(iconBytes []byte) error {
 
 // RunMessageLoop menjalankan Windows message loop
 func RunMessageLoop() {
+	runtime.LockOSThread()
 	if procMbRunMessageLoop != nil {
 		procMbRunMessageLoop.Call()
 	}
 
-	// Setelah message loop berhenti, uninitialization dan bersihkan cookies
-	if procMbUninit != nil {
-		procMbUninit.Call()
-	}
 	cleanLocalArtifacts()
 	spawnDetachedCleanup()
+	if procExitProcess != nil {
+		procExitProcess.Call(0)
+	}
 	os.Exit(0)
 }
 
-// ExitMessageLoop menghentikan message loop
+// ExitMessageLoop menghentikan message loop dan mengakhiri proses secara bersih
 func ExitMessageLoop() {
 	if procMbExitMessageLoop != nil {
 		procMbExitMessageLoop.Call()
 	}
 	cleanLocalArtifacts()
 	spawnDetachedCleanup()
+	if procExitProcess != nil {
+		procExitProcess.Call(0)
+	}
+	os.Exit(0)
 }

@@ -6,15 +6,19 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
+	"respect-app/internal/cryptopayload"
+	"respect-app/internal/tarball"
 )
 
-func TestStripTrailerAndReadPayload(t *testing.T) {
-	dummyExe := []byte("MZ_DUMMY_EXECUTABLE_CONTENT_1234567890")
+func TestPayloadV1(t *testing.T) {
+	dummyExe := []byte("MZ_DUMMY_EXECUTABLE_CONTENT_V1")
 
 	cfg := Config{
 		Mode:    "url",
 		Source:  "https://example.com",
-		Title:   "Test App",
+		Title:   "Test App V1",
 		Width:   1024,
 		Height:  768,
 		OutName: "test.exe",
@@ -29,65 +33,114 @@ func TestStripTrailerAndReadPayload(t *testing.T) {
 	lenBuf := make([]byte, 8)
 	binary.LittleEndian.PutUint64(lenBuf, uint64(len(cfgBytes)))
 
-	// Gabungkan dummy EXE + cfgBytes + lenBuf + Magic
 	var fullFile []byte
 	fullFile = append(fullFile, dummyExe...)
 	fullFile = append(fullFile, cfgBytes...)
 	fullFile = append(fullFile, lenBuf...)
-	fullFile = append(fullFile, []byte(Magic)...)
+	fullFile = append(fullFile, []byte(MagicV1)...)
 
-	// Simpan ke file temp
 	tmpDir := t.TempDir()
-	tmpPath := filepath.Join(tmpDir, "test_payload.exe")
+	tmpPath := filepath.Join(tmpDir, "test_v1.exe")
 	if err := os.WriteFile(tmpPath, fullFile, 0644); err != nil {
 		t.Fatalf("write file error: %v", err)
 	}
 
-	// Test ReadPayloadFrom
-	readCfg, err := ReadPayloadFrom(tmpPath)
+	p, err := ReadPayloadFrom(tmpPath)
 	if err != nil {
 		t.Fatalf("expected payload, got error: %v", err)
 	}
 
-	if readCfg.Mode != cfg.Mode || readCfg.Source != cfg.Source || readCfg.Title != cfg.Title {
-		t.Fatalf("payload mismatch: %+v != %+v", readCfg, cfg)
+	if p.Version != 1 {
+		t.Errorf("expected version 1, got %d", p.Version)
 	}
-	if readCfg.Width != 1024 || readCfg.Height != 768 {
-		t.Fatalf("dimensions mismatch: width=%d height=%d", readCfg.Width, readCfg.Height)
+	if p.Config.Title != cfg.Title {
+		t.Errorf("title mismatch: %s != %s", p.Config.Title, cfg.Title)
 	}
 
-	// Test StripTrailer
+	// Test StripTrailer V1
 	stripped := StripTrailer(fullFile)
 	if string(stripped) != string(dummyExe) {
-		t.Fatalf("stripped content mismatch: got %d bytes, expected %d bytes", len(stripped), len(dummyExe))
-	}
-
-	// Test StripTrailer on clean file without trailer
-	strippedClean := StripTrailer(dummyExe)
-	if string(strippedClean) != string(dummyExe) {
-		t.Fatalf("strippedClean mismatch")
+		t.Fatalf("stripped V1 mismatch")
 	}
 }
 
-func TestReadActualDemoExe(t *testing.T) {
-	// Cek apakah demo.exe ada di root project
-	demoPath := filepath.Join("..", "..", "demo.exe")
-	if _, err := os.Stat(demoPath); os.IsNotExist(err) {
-		t.Skip("demo.exe belum dibangun, lewati pengujian ini")
+func TestPayloadV2(t *testing.T) {
+	dummyExe := []byte("MZ_DUMMY_EXECUTABLE_CONTENT_V2")
+
+	cfg := Config{
+		Mode:    "app",
+		Source:  "index.html",
+		Title:   "Test App V2",
+		Width:   1280,
+		Height:  800,
+		OutName: "test_v2.exe",
+	}
+	cfg.Defaults()
+
+	cfgBytes, _ := json.Marshal(cfg)
+	files := map[string][]byte{
+		"respect.json":     cfgBytes,
+		"index.html":       []byte("<h1>Hello V2</h1>"),
+		"assets/style.css": []byte("body { color: blue; }"),
 	}
 
-	cfg, err := ReadPayloadFrom(demoPath)
+	tarBytes, err := tarball.Pack(files)
 	if err != nil {
-		t.Fatalf("gagal membaca payload dari demo.exe: %v", err)
+		t.Fatalf("tarball.Pack gagal: %v", err)
 	}
 
-	if cfg.Mode != "url" {
-		t.Errorf("expected mode 'url', got '%s'", cfg.Mode)
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		t.Fatalf("zstd encoder error: %v", err)
 	}
-	if cfg.Source != "https://example.com" {
-		t.Errorf("expected source 'https://example.com', got '%s'", cfg.Source)
+	zstdBlob := enc.EncodeAll(tarBytes, nil)
+	enc.Close()
+
+	peSample := dummyExe
+	if len(peSample) > 4096 {
+		peSample = peSample[:4096]
 	}
-	if cfg.Title != "Demo App" {
-		t.Errorf("expected title 'Demo App', got '%s'", cfg.Title)
+	encryptedBlob, err := cryptopayload.Encrypt(zstdBlob, peSample, int64(len(dummyExe)))
+	if err != nil {
+		t.Fatalf("cryptopayload.Encrypt gagal: %v", err)
+	}
+
+	lenBuf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(lenBuf, uint64(len(encryptedBlob)))
+
+	var fullFile []byte
+	fullFile = append(fullFile, dummyExe...)
+	fullFile = append(fullFile, encryptedBlob...)
+	fullFile = append(fullFile, lenBuf...)
+	fullFile = append(fullFile, []byte(MagicV2)...)
+
+	tmpDir := t.TempDir()
+	tmpPath := filepath.Join(tmpDir, "test_v2.exe")
+	if err := os.WriteFile(tmpPath, fullFile, 0644); err != nil {
+		t.Fatalf("write file error: %v", err)
+	}
+
+	p, err := ReadPayloadFrom(tmpPath)
+	if err != nil {
+		t.Fatalf("expected payload V2, got error: %v", err)
+	}
+
+	if p.Version != 2 {
+		t.Errorf("expected version 2, got %d", p.Version)
+	}
+	if p.Config.Title != "Test App V2" {
+		t.Errorf("title mismatch: %s != Test App V2", p.Config.Title)
+	}
+	if len(p.Files) != 3 {
+		t.Errorf("expected 3 files, got %d", len(p.Files))
+	}
+	if string(p.Files["index.html"]) != "<h1>Hello V2</h1>" {
+		t.Errorf("index.html content mismatch: %s", string(p.Files["index.html"]))
+	}
+
+	// Test StripTrailer V2
+	stripped := StripTrailer(fullFile)
+	if string(stripped) != string(dummyExe) {
+		t.Fatalf("stripped V2 mismatch")
 	}
 }

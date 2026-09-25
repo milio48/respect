@@ -5,15 +5,14 @@ package builder
 import (
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	blink "github.com/epkgs/blink"
 	"respect-app/assets"
+	"respect-app/internal/mb49"
 	"respect-app/internal/payload"
 	"respect-app/internal/version"
 )
@@ -23,7 +22,10 @@ var static embed.FS
 
 // Run menjalankan antarmuka grafis (GUI) builder respect-lite.exe menggunakan Miniblink 49.
 func Run() {
-	app := blink.NewApp()
+	app, err := mb49.InitApp()
+	if err != nil {
+		return
+	}
 	defer app.Exit()
 
 	res, err := fs.Sub(static, "static")
@@ -39,6 +41,16 @@ func Run() {
 	view.Window.SetTitle(title)
 	view.Window.MoveToCenter()
 
+	// Isolasi cookie dan local storage agar tidak mencemari direktori aplikasi
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		localAppData = os.TempDir()
+	}
+	appDir := filepath.Join(localAppData, "respect_desktop", "apps", "respect-builder")
+	_ = os.MkdirAll(filepath.Join(appDir, "storage"), 0755)
+	view.SetCookieJarFullPath(filepath.Join(appDir, "cookie.dat"))
+	view.SetLocalStorageFullPath(filepath.Join(appDir, "storage"))
+
 	// Daftarkan IPC handler untuk menerima instruksi build dari frontend JavaScript
 	app.IPC.Handle("build-app", func(cfgJSON string) string {
 		var cfg payload.Config
@@ -46,17 +58,7 @@ func Run() {
 			return errJSON(err)
 		}
 
-		if strings.TrimSpace(cfg.Source) == "" {
-			return errJSON(errors.New("sumber konten (source) wajib diisi"))
-		}
-		if strings.TrimSpace(cfg.OutName) == "" {
-			cfg.OutName = "demo.exe"
-		}
-		if !strings.HasSuffix(strings.ToLower(cfg.OutName), ".exe") {
-			cfg.OutName += ".exe"
-		}
-
-		if err := payload.BuildSelf(cfg); err != nil {
+		if err := buildAppFromConfig(cfg); err != nil {
 			return errJSON(err)
 		}
 
@@ -73,9 +75,15 @@ func Run() {
 		return string(respBytes)
 	})
 
-	// Daftarkan IPC handler untuk dialog pilih file icon native
+	// Daftarkan IPC handler untuk dialog native
 	app.IPC.Handle(cmdPickIcon, func(_ string) string {
 		return pickIconJSON(ownerHWND(view))
+	})
+	app.IPC.Handle(cmdPickFolder, func(_ string) string {
+		return pickFolderJSON(ownerHWND(view))
+	})
+	app.IPC.Handle(cmdPickHTML, func(_ string) string {
+		return pickHTMLJSON(ownerHWND(view))
 	})
 
 	view.LoadURL("http://builder/index.html")

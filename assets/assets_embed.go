@@ -4,5 +4,5 @@ package assets
 
 import _ "embed"
 
-//go:embed blink.dll
-var BlinkDLL []byte
+//go:embed blink.dll.zst
+var BlinkDLLZst []byte

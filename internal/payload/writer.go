@@ -4,8 +4,14 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/klauspost/compress/zstd"
+	"respect-app/internal/cryptopayload"
+	"respect-app/internal/tarball"
 )
 
 // MetadataApplier adalah fungsi untuk menginjeksi icon dan metadata PE ke base EXE.
@@ -17,13 +23,11 @@ var IconInjector func(targetExe, iconPath string) error
 // DefaultIconInjector menyuntikkan icon bawaan Respect jika user tidak menyertakan icon kustom.
 var DefaultIconInjector func(targetExe string) error
 
-// BuildSelf menghasilkan file EXE baru berdasarkan EXE ini sendiri,
-// dengan config di-append di ujungnya (trailer format).
-func BuildSelf(cfg Config) error {
+// prepareBaseEXE mempersiapkan file base executable sebelum ditempel trailer payload.
+func prepareBaseEXE(cfg Config) error {
 	if cfg.OutName == "" {
 		return errors.New("out_name wajib diisi")
 	}
-	cfg.Defaults()
 
 	self, err := os.Executable()
 	if err != nil {
@@ -45,12 +49,6 @@ func BuildSelf(cfg Config) error {
 	// Potong payload lama (kalau ada) supaya tidak menumpuk
 	selfBytes = StripTrailer(selfBytes)
 
-	// Serialize config
-	cfgBytes, err := json.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-
 	// Pastikan direktori tujuan tersedia
 	outDir := filepath.Dir(cfg.OutName)
 	if outDir != "" && outDir != "." {
@@ -59,15 +57,23 @@ func BuildSelf(cfg Config) error {
 		}
 	}
 
-	// Tulis base EXE
-	if err := os.WriteFile(cfg.OutName, selfBytes, 0755); err != nil {
-		return err
+	// Tulis base EXE (dengan retry untuk mencegah bentrok antivirus/file lock sesaat di Windows)
+	var writeErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		_ = os.Remove(cfg.OutName)
+		writeErr = os.WriteFile(cfg.OutName, selfBytes, 0755)
+		if writeErr == nil {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	if writeErr != nil {
+		return writeErr
 	}
 
 	// Injeksi metadata PE dan icon sebelum trailer ditempel
 	if MetadataApplier != nil {
 		if err := MetadataApplier(cfg.OutName, cfg); err != nil {
-			// Jika metadata applier gagal, log dan lanjutkan atau return error
 			return err
 		}
 	} else {
@@ -80,25 +86,112 @@ func BuildSelf(cfg Config) error {
 		}
 	}
 
-	// Buka file dalam mode append untuk menempelkan trailer payload
-	out, err := os.OpenFile(cfg.OutName, os.O_APPEND|os.O_WRONLY, 0755)
+	return nil
+}
+
+// appendTrailer menempelkan data blob + 8-byte panjang + magic string ke ujung executable.
+func appendTrailer(targetExe string, blob []byte, magic string) error {
+	var out *os.File
+	var err error
+	for attempt := 0; attempt < 10; attempt++ {
+		out, err = os.OpenFile(targetExe, os.O_APPEND|os.O_WRONLY, 0755)
+		if err == nil {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 
-	if _, err := out.Write(cfgBytes); err != nil {
+	if _, err := out.Write(blob); err != nil {
 		return err
 	}
 
 	lenBuf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(lenBuf, uint64(len(cfgBytes)))
+	binary.LittleEndian.PutUint64(lenBuf, uint64(len(blob)))
 	if _, err := out.Write(lenBuf); err != nil {
 		return err
 	}
-	if _, err := out.Write([]byte(Magic)); err != nil {
+	if _, err := out.Write([]byte(magic)); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// BuildSelf menghasilkan file EXE baru (format V1 - JSON tunggal).
+func BuildSelf(cfg Config) error {
+	cfg.Defaults()
+	if err := prepareBaseEXE(cfg); err != nil {
+		return err
+	}
+
+	cfgBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	return appendTrailer(cfg.OutName, cfgBytes, MagicV1)
+}
+
+// BuildSelfV2 menghasilkan file EXE baru (format V2 - TAR + Zstandard in-memory multi-file).
+func BuildSelfV2(cfg Config, files map[string][]byte) error {
+	cfg.Defaults()
+
+	if files == nil {
+		files = make(map[string][]byte)
+	}
+
+	// 1. Sisipkan respect.json ke dalam arsip TAR
+	cfgBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("gagal serialize config respect.json: %w", err)
+	}
+	files["respect.json"] = cfgBytes
+
+	// 2. Kemas seluruh file ke dalam stream TAR
+	tarBytes, err := tarball.Pack(files)
+	if err != nil {
+		return fmt.Errorf("gagal mengemas arsip tar: %w", err)
+	}
+
+	// 3. Kompresi stream TAR dengan Zstandard level tertinggi
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		return fmt.Errorf("gagal inisialisasi zstd encoder: %w", err)
+	}
+	zstdBlob := enc.EncodeAll(tarBytes, nil)
+	enc.Close()
+
+	// 4. Siapkan base executable (cloning + rcedit stamping)
+	if err := prepareBaseEXE(cfg); err != nil {
+		return err
+	}
+
+	// 5. Baca sample PE header dan ukuran total base executable untuk derived key
+	targetFile, err := os.Open(cfg.OutName)
+	if err != nil {
+		return fmt.Errorf("gagal membuka target exe untuk enkripsi: %w", err)
+	}
+	stat, err := targetFile.Stat()
+	if err != nil {
+		targetFile.Close()
+		return fmt.Errorf("gagal stat target exe: %w", err)
+	}
+	baseExeSize := stat.Size()
+	peSample := make([]byte, 4096)
+	n, _ := targetFile.ReadAt(peSample, 0)
+	targetFile.Close()
+	peSample = peSample[:n]
+
+	// 6. Enkripsi zstdBlob dengan AES-256-GCM
+	encryptedBlob, err := cryptopayload.Encrypt(zstdBlob, peSample, baseExeSize)
+	if err != nil {
+		return fmt.Errorf("gagal mengenkripsi payload v2: %w", err)
+	}
+
+	// 7. Tempelkan trailer V2 terenkripsi
+	return appendTrailer(cfg.OutName, encryptedBlob, MagicV2)
 }

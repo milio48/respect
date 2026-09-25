@@ -2,5 +2,5 @@
 
 package assets
 
-// BlinkDLL bernilai nil pada build slim (dev / localhost).
-var BlinkDLL []byte
+// BlinkDLLZst bernilai nil pada build slim (dev / localhost).
+var BlinkDLLZst []byte
