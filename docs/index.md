@@ -40,7 +40,14 @@ Panduan bagi developer yang ingin mengompilasi Respect langsung dari source code
 - Kompilasi manual menggunakan Go build tags (`v132`, `embed132`).
 - Struktur repository dan pipeline rilis otomatis GitHub Actions.
 
+### [6. Kompatibilitas Standar Web, Media & Batasan Engine](6-kompatibilitas-dan-batasan-engine.md)
+Penjelasan transparan mengenai kemampuan dan batas nyata engine Miniblink:
+- **Pemutaran Media Native**: Pemutaran video MP4 (H.264/AAC) berakselerasi DirectX via Windows Media Foundation HWND Overlay (0 KB overhead), audio MP3/WAV/M4A, dan kontrol JavaScript lengkap.
+- **Mode Local Server & Keamanan**: Dukungan Secure Context (`crypto.subtle`), one-time token query `?token=`, dan perlindungan cookie `HttpOnly` untuk menangkal akses dari luar aplikasi.
+- **Matriks Dukungan Fitur**: Apa yang didukung 100%, apa yang diakali via Win32 shims, dan apa yang benar-benar tidak didukung (WebGL, WebRTC, MSE).
+
 ---
+
 
 ## 🔗 Tautan Eksternal & Kredit Komunitas
 
