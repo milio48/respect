@@ -193,7 +193,7 @@ if ($shouldBuildDemo -and (Test-Path $stressDir)) {
 
     # A. Demo Modern (Chromium 132)
     $modernExe = Join-Path (Join-Path $OutDir 'respect') 'respect.exe'
-    if (Test-Path $modernExe) {
+    if (($Target -eq 'all' -or $Target -eq 'modern') -and (Test-Path $modernExe)) {
         $demoModern = Join-Path $OutDir 'demo-stress-testing.exe'
         Write-Host "Membangun $demoModern..." -ForegroundColor Yellow
         $cmdModern = "`"$modernExe`" --build --dir `"$stressDir`" $iconArg --out `"$demoModern`" --title `"Respect Stress Testing Suite`" --app-version `"$Version`""
@@ -203,7 +203,7 @@ if ($shouldBuildDemo -and (Test-Path $stressDir)) {
             $mb = [math]::Round(($bytes / 1048576), 2)
             Write-Host "  -> Selesai: $demoModern ($mb MB)" -ForegroundColor Green
             $built += 'demo-stress-testing.exe'
-            if (-not $Embed -and (Test-Path $targetDll)) {
+            if (-not $Embed -and $targetDll -and (Test-Path $targetDll)) {
                 $rootDll = Join-Path $OutDir 'blink.dll'
                 if (-not (Test-Path $rootDll)) {
                     Copy-Item -Path $targetDll -Destination $rootDll -Force
@@ -226,7 +226,8 @@ if ($shouldBuildDemo -and (Test-Path $stressDir)) {
 
     # B. Demo Lite (Miniblink 49)
     $liteExe = Join-Path (Join-Path $OutDir 'respect-lite') 'respect-lite.exe'
-    if (Test-Path $liteExe) {
+    if (($Target -eq 'all' -or $Target -eq 'lite' -or $Target -eq 'lite-x86') -and (Test-Path $liteExe)) {
+        # B1. Demo Lite Virtual Host (http://app/)
         $demoLite = Join-Path $OutDir 'demo-stress-testing_lite.exe'
         Write-Host "Membangun $demoLite..." -ForegroundColor Yellow
         $cmdLite = "`"$liteExe`" --build --dir `"$stressDir`" $iconArg --out `"$demoLite`" --title `"Respect Stress Testing Suite (Lite)`" --app-version `"$Version`""
@@ -236,6 +237,18 @@ if ($shouldBuildDemo -and (Test-Path $stressDir)) {
             $mb = [math]::Round(($bytes / 1048576), 2)
             Write-Host "  -> Selesai: $demoLite ($mb MB)" -ForegroundColor Green
             $built += 'demo-stress-testing_lite.exe'
+        }
+
+        # B2. Demo Lite Server Mode (127.0.0.1 for Secure Context)
+        $demoLiteServer = Join-Path $OutDir 'demo-stress-testing_lite-server.exe'
+        Write-Host "Membangun $demoLiteServer (Lite Server Mode)..." -ForegroundColor Yellow
+        $cmdLiteServer = "`"$liteExe`" --build --dir `"$stressDir`" --server $iconArg --out `"$demoLiteServer`" --title `"Respect Stress Testing Suite (Lite Server Mode)`" --app-version `"$Version`""
+        cmd /c "$cmdLiteServer"
+        if (Test-Path $demoLiteServer) {
+            $bytes = (Get-Item $demoLiteServer).Length
+            $mb = [math]::Round(($bytes / 1048576), 2)
+            Write-Host "  -> Selesai: $demoLiteServer ($mb MB)" -ForegroundColor Green
+            $built += 'demo-stress-testing_lite-server.exe'
         }
     }
 }

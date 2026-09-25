@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"unsafe"
 
@@ -23,17 +24,26 @@ const defaultModernUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
 
 // Run menampilkan jendela Miniblink 49 sesuai konfigurasi payload (V1 atau V2).
 func Run(p *payload.Payload) {
+	goruntime.LockOSThread()
 	cfg := &p.Config
 	cfg.Defaults()
 
 	app := blink.NewApp()
 	defer app.Exit()
 
-	// Injeksi boot script untuk menyetel bahasa navigator ke Indonesia/Inggris
+	// Daftarkan handler IPC standar untuk runtime Lite
+	app.IPC.Handle("respect_stress_ping", func(arg string) string {
+		return `{"ok":true,"pong":"respect-lite"}`
+	})
+	app.IPC.Handle("ping", func(_ string) string {
+		return `{"ok":true,"engine":"v49"}`
+	})
+
+	// Injeksi boot script untuk menyetel bahasa navigator ke Indonesia/Inggris (format ES5 murni)
 	app.AddBootScript(`
 try {
-	Object.defineProperty(navigator, 'language', { get: () => 'id-ID' });
-	Object.defineProperty(navigator, 'languages', { get: () => ['id-ID', 'id', 'en-US', 'en'] });
+	Object.defineProperty(navigator, 'language', { get: function () { return 'id-ID'; } });
+	Object.defineProperty(navigator, 'languages', { get: function () { return ['id-ID', 'id', 'en-US', 'en']; } });
 } catch (e) {}
 `)
 
@@ -104,6 +114,13 @@ try {
 		if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") && !strings.HasPrefix(targetURL, "file://") {
 			targetURL = "https://" + targetURL
 		}
+		if strings.Contains(targetURL, "google.com") && !strings.Contains(targetURL, "hl=") {
+			if strings.Contains(targetURL, "?") {
+				targetURL += "&hl=id"
+			} else {
+				targetURL += "/?hl=id"
+			}
+		}
 		view.LoadURL(targetURL)
 
 	case "file":
@@ -112,7 +129,7 @@ try {
 			fileURL := "file:///" + filepath.ToSlash(absPath)
 			view.LoadURL(fileURL)
 		} else {
-			loadErrorHTML(view, "Gagal memuat path file: "+err.Error())
+			loadErrorHTML(view, cfg.Title, "Gagal memuat path file: "+err.Error())
 		}
 
 	case "html":
@@ -127,7 +144,7 @@ try {
 		}
 
 	default:
-		loadErrorHTML(view, "Mode tidak dikenal: "+cfg.Mode)
+		loadErrorHTML(view, cfg.Title, "Mode tidak dikenal: "+cfg.Mode)
 	}
 
 	view.ShowWindow()
@@ -139,13 +156,17 @@ try {
 	app.KeepRunning()
 }
 
-func loadErrorHTML(view *blink.View, msg string) {
+func loadErrorHTML(view *blink.View, title, msg string) {
+	if title == "" {
+		title = "Respect Lite"
+	}
 	escaped := url.PathEscape(fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Error</title>
 <style>body{font-family:system-ui,sans-serif;padding:32px;background:#1a1a1a;color:#ff5555;text-align:center;}</style>
 </head>
-<body><h2>respect-lite.exe — Kesalahan</h2><p>%s</p></body>
-</html>`, msg))
+<body><h2>%s — Kesalahan</h2><p>%s</p></body>
+</html>`, title, msg))
 	view.LoadURL("data:text/html;charset=utf-8," + escaped)
 }
+
