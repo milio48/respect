@@ -20,17 +20,14 @@
 
 ---
 
-## ⚡ Unduh (Siap Pakai, Cukup 1 File .EXE)
+## ⚡ Unduh
 
-Langsung unduh edisi executable yang sesuai dengan kebutuhan Anda:
-
-| <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-full.png" width="80" height="80" alt="Respect Modern"><br><b>Respect Modern (`respect.exe`)</b></a> | <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-lite.png" width="80" height="80" alt="Respect Lite"><br><b>Respect Lite (`respect-lite.exe`)</b></a> |
+| <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-full.png" width="64" height="64" alt="Modern"><br><b>respect.exe</b></a> | <a href="https://github.com/milio48/respect/releases"><img src="assets/icon-lite.png" width="64" height="64" alt="Lite"><br><b>respect-lite.exe</b></a> |
 | :---: | :---: |
-| 🌟 **Pilihan Terbaik & Paling Direkomendasikan**<br>Mendukung web modern, Tailwind CSS, animasi halus, dan visual kaya *(Chromium 132)*. | 🪶 **Paling Ringan & Hemat Memori RAM**<br>Sangat enteng (~25–40 MB RAM), cocok untuk aplikasi kasir atau PC lawas *(Miniblink 49)*. |
-| [⬇️ **Unduh Edisi Modern (64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows 7, 8, 10, 11)* | [⬇️ **Unduh Edisi Lite (32/64-bit)**](https://github.com/milio48/respect/releases)<br>*(Windows XP s.d. 11)* |
+| 🌟 **Modern** — Chromium 132, web modern penuh | 🪶 **Lite** — Miniblink 49, ~25–40 MB RAM |
+| [⬇️ **Unduh Modern (64-bit)**](https://github.com/milio48/respect/releases)<br>Win 7–11 | [⬇️ **Unduh Lite (32/64-bit)**](https://github.com/milio48/respect/releases)<br>Win XP–11 |
 
-> 🎮 **Ingin mencoba performa & kapabilitas engine langsung?**
-> Unduh file demo siap jalan di halaman Releases: [**`demo-stress-testing.exe`** (Modern)](https://github.com/milio48/respect/releases) atau [**`demo-stress-testing_lite.exe`** (Lite)](https://github.com/milio48/respect/releases) untuk menguji 120+ standar web, audio oscilloscope, kamera, dan simulasi fisika 20.000 partikel 60 FPS.
+> 🎮 Demo stress-test tersedia di [Releases](https://github.com/milio48/respect/releases): `demo-stress-testing.exe` / `demo-stress-testing_lite.exe`
 
 ---
 
